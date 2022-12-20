@@ -310,7 +310,7 @@
       "workbook_filename": ""
     },
     "page_layout_descr_file": "",
-    "plot_directory": "",
+    "plot_directory": "/tmp/",
     "spice_adjust_passive_values": false,
     "spice_external_command": "spice \"%I\"",
     "subpart_first_id": 65,
@@ -340,6 +340,10 @@
     [
       "089c7e84-b1f5-4a22-bf03-fb757e33233c",
       "Management Interface"
+    ],
+    [
+      "4ec179d0-62df-4d2b-8a86-9f314432418c",
+      "Boot Flash"
     ]
   ],
   "text_variables": {}
