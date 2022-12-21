@@ -6,7 +6,7 @@
 
   (title_block
     (title "Active 10/100/1000baseT Tap")
-    (date "2022-12-20")
+    (date "2022-12-21")
     (rev "0.1")
     (company "Antikernel Labs")
     (comment 1 "Andrew D. Zonenberg")
@@ -2213,7 +2213,7 @@
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid e5232db5-47b4-4ed0-9f70-598225775dd9)
   )
-  (label "FPGA_JTAG_TMS" (at 134.62 53.34 180)
+  (label "FPGA_JTAG_TCK" (at 134.62 53.34 180)
     (effects (font (size 1.27 1.27)) (justify right bottom))
     (uuid f0058c66-ab8a-44b3-b4be-2a3183b4ffac)
   )
