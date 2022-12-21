@@ -1576,6 +1576,18 @@
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/c9e1d587-8df9-46b9-a319-28d4dd7a5067"
       (reference "TP10") (unit 1) (value "U.FL") (footprint "azonenberg_pcb:CONN_U.FL_TE_1909763-1")
     )
+    (path "/7e57c1ab-28b5-4b00-87ec-b6bce7bdfed5/a1f0a09f-48d5-43c0-8e17-3ab8b7c89645"
+      (reference "TP11") (unit 1) (value "TESTPOINT") (footprint "azonenberg_pcb:TESTPOINT_SMT_0.5MM")
+    )
+    (path "/cada0bea-1c13-43de-8c76-f71887adf217/ce84e49f-2a24-461d-b8e1-c249c76dac3a"
+      (reference "TP12") (unit 1) (value "TESTCLIP") (footprint "azonenberg_pcb:TESTPOINT_SMT_KEYSTONE_5016")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/9d8f1c0e-b835-4023-8ec9-dba5e28679f0"
+      (reference "TP13") (unit 1) (value "U.FL") (footprint "azonenberg_pcb:CONN_U.FL_TE_1909763-1")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/c14c2ebe-da44-4df0-98e0-86dbd0a2e33b"
+      (reference "TP14") (unit 1) (value "U.FL") (footprint "azonenberg_pcb:CONN_U.FL_TE_1909763-1")
+    )
     (path "/cada0bea-1c13-43de-8c76-f71887adf217/0b0eadd1-d4bc-4bdd-92e5-a54b06d5380d"
       (reference "U1") (unit 1) (value "LTC3374-QFN") (footprint "azonenberg_pcb:QFN_38_0.5MM_5x7MM")
     )
