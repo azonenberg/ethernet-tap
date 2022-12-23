@@ -6,7 +6,7 @@
 
   (title_block
     (title "Active 10/100/1000baseT Tap")
-    (date "2022-12-21")
+    (date "2022-12-23")
     (rev "0.1")
     (company "Antikernel Labs")
     (comment 1 "Andrew D. Zonenberg")
@@ -99,7 +99,7 @@
           (stroke (width 0.2032) (type default) (color 0 0 0 0))
           (fill (type none))
         )
-        (arc (start 1.778 0) (mid 0.2221 1.8083) (end -1.778 0.508)
+        (arc (start 1.778 0) (mid 0.222 1.8083) (end -1.778 0.508)
           (stroke (width 0.254) (type default) (color 0 0 0 0))
           (fill (type none))
         )
@@ -611,7 +611,7 @@
 
   (no_connect (at 182.88 27.94) (uuid 161200e4-736a-4698-8fd5-d6941bf1e5f4))
   (no_connect (at 48.26 132.08) (uuid 7fc9e4fe-3024-4f70-9533-c365eeecf6d6))
-  (no_connect (at 48.26 134.62) (uuid 7fc9e4fe-3024-4f70-9533-c365eeecf6d6))
+  (no_connect (at 48.26 134.62) (uuid 7fc9e4fe-3024-4f70-9533-c365eeecf6d7))
 
   (wire (pts (xy 187.96 184.15) (xy 191.77 184.15))
     (stroke (width 0) (type default) (color 0 0 0 0))
