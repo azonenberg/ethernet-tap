@@ -6,7 +6,7 @@
 
   (title_block
     (title "Active 10/100/1000baseT Tap")
-    (date "2022-12-23")
+    (date "2022-12-24")
     (rev "0.1")
     (company "Antikernel Labs")
     (comment 1 "Andrew D. Zonenberg")
@@ -1224,6 +1224,9 @@
     (path "/7e57c1ab-28b5-4b00-87ec-b6bce7bdfed5/ce2dfe15-f394-40d4-9de2-0c96aef7c3c2"
       (reference "J10") (unit 1) (value "XILINX_JTAG") (footprint "azonenberg_pcb:XILINX_JTAG_PTH_MOLEX_0878311420")
     )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/525f0916-2ee1-450e-8c29-19d8b0c4c6de"
+      (reference "J11") (unit 1) (value "UART") (footprint "azonenberg_pcb:CONN_HEADER_2.54MM_1x3")
+    )
     (path "/cada0bea-1c13-43de-8c76-f71887adf217/da1e1db6-acfd-4b48-8de3-bf4a7021f3c4"
       (reference "L1") (unit 1) (value "NRS5030T2R2NMGJ") (footprint "azonenberg_pcb:INDUCTOR_YUDEN_NRS5030")
     )
@@ -1653,6 +1656,18 @@
     (path "/4ec179d0-62df-4d2b-8a86-9f314432418c/0876f2a9-fa54-44a6-9449-5e97f10620d5"
       (reference "R134") (unit 1) (value "33") (footprint "azonenberg_pcb:EIA_0402_RES_NOSILK")
     )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/c84e32b0-721f-485d-b705-cc99b68b0fb8"
+      (reference "R135") (unit 1) (value "0") (footprint "azonenberg_pcb:EIA_0402_RES_NOSILK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/a14ea0fe-6e74-4e33-af9a-2c06fc674db9"
+      (reference "R136") (unit 1) (value "10K") (footprint "azonenberg_pcb:EIA_0402_RES_NOSILK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/edaa26c7-9ce6-4273-a130-badf2775f0cf"
+      (reference "R137") (unit 1) (value "10K") (footprint "azonenberg_pcb:EIA_0402_RES_NOSILK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/0be6d64d-bd50-4f4b-b713-eebf2f3bdc06"
+      (reference "R138") (unit 1) (value "10K") (footprint "azonenberg_pcb:EIA_0402_RES_NOSILK")
+    )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/59e873ae-2ab0-47d5-a54a-425edb61aa5c"
       (reference "SW1") (unit 1) (value "SWITCH") (footprint "azonenberg_pcb:SWITCH_RAFI_MICON_5")
     )
@@ -1673,6 +1688,15 @@
     )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/0ea9ebea-8d86-4578-91ad-744a41fe8663"
       (reference "SW7") (unit 1) (value "BUTTON") (footprint "azonenberg_pcb:SWITCH_RAFI_MICON_5")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/7dbdad12-e7c8-445e-b629-3d002ca5f6cb"
+      (reference "SW8") (unit 1) (value "SWITCH") (footprint "azonenberg_pcb:SWITCH_RAFI_MICON_5")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/377a48e0-c6a8-469d-b0b8-aecccf5406e1"
+      (reference "SW9") (unit 1) (value "SWITCH") (footprint "azonenberg_pcb:SWITCH_RAFI_MICON_5")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/8911bb3c-b28c-4eac-bc46-0e45e5d68415"
+      (reference "SW10") (unit 1) (value "SWITCH") (footprint "azonenberg_pcb:SWITCH_RAFI_MICON_5")
     )
     (path "/cada0bea-1c13-43de-8c76-f71887adf217/a6a1ea38-7569-47bc-9acc-8329cb978f93"
       (reference "TP1") (unit 1) (value "TESTPOINT") (footprint "azonenberg_pcb:TESTPOINT_SMT_0.5MM")
