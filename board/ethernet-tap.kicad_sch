@@ -6,7 +6,7 @@
 
   (title_block
     (title "Active 10/100/1000baseT Tap")
-    (date "2022-12-24")
+    (date "2022-12-26")
     (rev "0.1")
     (company "Antikernel Labs")
     (comment 1 "Andrew D. Zonenberg")
@@ -1823,6 +1823,15 @@
     )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/6a430e73-9a9a-4030-bddf-3410dc705a06"
       (reference "U13") (unit 5) (value "STM32H735-UFBGA176-25") (footprint "azonenberg_pcb:BGA_201_10x10_DEPOP_0.65MM_OSHPARK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/428fd061-ea0a-462c-a8fb-5150bbd1d04f"
+      (reference "U13") (unit 6) (value "STM32H735-UFBGA176-25") (footprint "azonenberg_pcb:BGA_201_10x10_DEPOP_0.65MM_OSHPARK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/9c1eb42b-6942-45bd-9c9c-73df4040f24e"
+      (reference "U13") (unit 7) (value "STM32H735-UFBGA176-25") (footprint "azonenberg_pcb:BGA_201_10x10_DEPOP_0.65MM_OSHPARK")
+    )
+    (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/b04a8036-ac64-4a9d-8291-1c24bdc74807"
+      (reference "U13") (unit 8) (value "STM32H735-UFBGA176-25") (footprint "azonenberg_pcb:BGA_201_10x10_DEPOP_0.65MM_OSHPARK")
     )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/dba47982-c4c4-409c-b927-a382c1aba253"
       (reference "U13") (unit 9) (value "STM32H735-UFBGA176-25") (footprint "azonenberg_pcb:BGA_201_10x10_DEPOP_0.65MM_OSHPARK")
