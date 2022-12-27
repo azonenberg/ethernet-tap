@@ -6,7 +6,7 @@
 
   (title_block
     (title "Active 10/100/1000baseT Tap")
-    (date "2022-12-26")
+    (date "2022-12-27")
     (rev "0.1")
     (company "Antikernel Labs")
     (comment 1 "Andrew D. Zonenberg")
@@ -1101,6 +1101,15 @@
     (path "/4ec179d0-62df-4d2b-8a86-9f314432418c/93155e0c-f143-444c-86d6-4d01980a6e3d"
       (reference "C184") (unit 1) (value "0.47 uF") (footprint "azonenberg_pcb:EIA_0402_CAP_NOSILK")
     )
+    (path "/d03260ae-fe1f-440e-b01f-22e43ce67fe5/7590c6bf-4bd7-4c13-9be5-db70f8380ab3"
+      (reference "C185") (unit 1) (value "0.47 uF") (footprint "azonenberg_pcb:EIA_0402_CAP_NOSILK")
+    )
+    (path "/d03260ae-fe1f-440e-b01f-22e43ce67fe5/c9dbb59d-c9cd-47da-8896-bd763a664cc3"
+      (reference "C186") (unit 1) (value "0.47 uF") (footprint "azonenberg_pcb:EIA_0402_CAP_NOSILK")
+    )
+    (path "/6cf7e93b-5110-4344-ada1-6d3bdf986aa6/0fe3e739-8b28-4677-b32e-ece24b1b5e76"
+      (reference "C187") (unit 1) (value "0.47 uF") (footprint "azonenberg_pcb:EIA_0402_CAP_NOSILK")
+    )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/005022b8-6b4c-494c-ae37-a60f8f02ae9d"
       (reference "D1") (unit 1) (value "GREEN") (footprint "azonenberg_pcb:EIA_0603_LED")
     )
@@ -1226,6 +1235,9 @@
     )
     (path "/089c7e84-b1f5-4a22-bf03-fb757e33233c/525f0916-2ee1-450e-8c29-19d8b0c4c6de"
       (reference "J11") (unit 1) (value "UART") (footprint "azonenberg_pcb:CONN_HEADER_2.54MM_1x3")
+    )
+    (path "/6cf7e93b-5110-4344-ada1-6d3bdf986aa6/c260e7d6-3541-494e-8faa-3f38a670b80b"
+      (reference "J12") (unit 1) (value "SMA") (footprint "azonenberg_pcb:CONN_SMA_EDGE_SAMTEC_SMA_J_P_H_ST_EM1")
     )
     (path "/cada0bea-1c13-43de-8c76-f71887adf217/da1e1db6-acfd-4b48-8de3-bf4a7021f3c4"
       (reference "L1") (unit 1) (value "NRS5030T2R2NMGJ") (footprint "azonenberg_pcb:INDUCTOR_YUDEN_NRS5030")
