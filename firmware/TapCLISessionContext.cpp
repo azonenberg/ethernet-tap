@@ -34,78 +34,39 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Command table
 
-//List of all valid commands
+//List of all valid command tokens
 enum cmdid_t
 {
+	CMD_INTERFACE,
 	CMD_RELOAD,
-	CMD_SHOW
-};
-
-/*
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "hostname"
-
-static const clikeyword_t g_hostnameCommands[] =
-{
-	{"<string>",		FREEFORM_TOKEN,			NULL,						"New host name"},
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	CMD_SHOW,
+	CMD_STATUS
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "ip"
-
+/*
 static const clikeyword_t g_ipAddressCommands[] =
 {
 	{"<string>",		FREEFORM_TOKEN,			NULL,						"New IPv4 address and subnet mask in x.x.x.x/yy format"},
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
-
-static const clikeyword_t g_defaultGatewayCommands[] =
-{
-	{"<string>",		FREEFORM_TOKEN,			NULL,						"New IPv4 default gateway"},
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
-};
-
-static const clikeyword_t g_ipCommands[] =
-{
-	{"address",			CMD_ADDRESS,			g_ipAddressCommands,		"Set the IPv4 address and subnet mask"},
-	{"default-gateway",	CMD_DEFAULT_GATEWAY,	g_defaultGatewayCommands,	"Set the IPv4 default route"},
-
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
-};
+*/
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "show"
-/*
-static const clikeyword_t g_showArpCommands[] =
+
+static const clikeyword_t g_showInterfaceCommands[] =
 {
-	{"cache",			CMD_CACHE,				NULL,						"Show contents of the ARP cache"},
+	{"status",			CMD_STATUS,				NULL,						"Print status of interfaces"},
 
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
 
-static const clikeyword_t g_showIpCommands[] =
-{
-	{"address",			CMD_ADDRESS,			NULL,						"Show the IPv4 address and subnet mask"},
-	{"route",			CMD_ROUTE,				NULL,						"Show the IPv4 routing table"},
-
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
-};
-
-static const clikeyword_t g_showSshCommands[] =
-{
-	{"fingerprint",		CMD_FINGERPRINT,		NULL,						"Show the SSH host key fingerprint (in OpenSSH base64 SHA256 format)"},
-
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
-};
-*/
 static const clikeyword_t g_showCommands[] =
 {
-	//{"arp",				CMD_ARP,				g_showArpCommands,			"Print ARP information"},
-	//{"flash",			CMD_FLASH,				NULL,						"Print contents and size of config storage"},
+	{"interface",		CMD_INTERFACE,			g_showInterfaceCommands,	"Print interface information"},
 	//{"hardware",		CMD_HARDWARE,			NULL,						"Print hardware information"},
-	//{"ip",				CMD_IP,					g_showIpCommands,			"Print IPv4 information"},
-	//{"ssh",				CMD_SSH,				g_showSshCommands,			"Print SSH information"},
 
 	{NULL,				INVALID_COMMAND,		NULL,	NULL}
 };
@@ -163,6 +124,7 @@ void TapCLISessionContext::OnExecute()
 	}
 	m_stream->Flush();
 }
+
 /*
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "hostname"
@@ -230,82 +192,6 @@ void TapCLISessionContext::OnDefaultGateway(const char* ipstring)
 	//Push it to the FPGA
 	g_qspi->BlockingWrite(REG_GATEWAY, 0, g_ipConfig.m_gateway.m_octets, sizeof(IPv4Address));
 }
-
-void TapCLISessionContext::OnIPAddress(const char* ipstring)
-{
-	int len = strlen(ipstring);
-
-	int nfield = 0;	//0-3 = IP, 4 = netmask
-	unsigned int fields[5] = {0};
-
-	//Parse
-	bool fail = false;
-	for(int i=0; i<len; i++)
-	{
-		//Dot = move to next field
-		if( (ipstring[i] == '.') && (nfield < 3) )
-			nfield ++;
-
-		//Slash = move to netmask
-		else if( (ipstring[i] == '/') && (nfield == 3) )
-			nfield ++;
-
-		//Digit = update current field
-		else if(isdigit(ipstring[i]))
-			fields[nfield] = (fields[nfield] * 10) + (ipstring[i] - '0');
-
-		else
-		{
-			fail = true;
-			break;
-		}
-	}
-
-	//Validate
-	if(nfield != 4)
-		fail = true;
-	for(int i=0; i<4; i++)
-	{
-		if(fields[i] > 255)
-		{
-			fail = true;
-			break;
-		}
-	}
-	if( (fields[4] > 32) || (fields[4] == 0) )
-		fail = true;
-	if(fail)
-	{
-		m_stream->Printf("Usage: ip address x.x.x.x/yy\n");
-		return;
-	}
-
-	//Set the IP
-	for(int i=0; i<4; i++)
-		g_ipConfig.m_address.m_octets[i] = fields[i];
-
-	//Calculate the netmask
-	uint32_t mask = 0xffffffff << (32 - fields[4]);
-	g_ipConfig.m_netmask.m_octets[0] = (mask >> 24) & 0xff;
-	g_ipConfig.m_netmask.m_octets[1] = (mask >> 16) & 0xff;
-	g_ipConfig.m_netmask.m_octets[2] = (mask >> 8) & 0xff;
-	g_ipConfig.m_netmask.m_octets[3] = (mask >> 0) & 0xff;
-
-	//Calculate the broadcast address
-	for(int i=0; i<4; i++)
-		g_ipConfig.m_broadcast.m_octets[i] = g_ipConfig.m_address.m_octets[i] | ~g_ipConfig.m_netmask.m_octets[i];
-
-	//Write the new IP configuration to flash
-	if(!g_kvs->StoreObject("ip.addr", g_ipConfig.m_address.m_octets, 4))
-		g_log(Logger::ERROR, "Failed to write IP address to flash\n");
-	if(!g_kvs->StoreObject("ip.netmask", g_ipConfig.m_netmask.m_octets, 4))
-		g_log(Logger::ERROR, "Failed to write IP address to flash\n");
-
-	//Push it to the FPGA
-	g_qspi->BlockingWrite(REG_IP_ADDRESS, 0, g_ipConfig.m_address.m_octets, sizeof(IPv4Address));
-	g_qspi->BlockingWrite(REG_SUBNET_MASK, 0, g_ipConfig.m_netmask.m_octets, sizeof(IPv4Address));
-	g_qspi->BlockingWrite(REG_BROADCAST, 0, g_ipConfig.m_broadcast.m_octets, sizeof(IPv4Address));
-}
 */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "reload"
@@ -323,14 +209,13 @@ void TapCLISessionContext::OnReload()
 
 void TapCLISessionContext::OnShowCommand()
 {
-	/*
 	switch(m_command[1].m_commandID)
 	{
-		case CMD_ARP:
+		case CMD_INTERFACE:
 			switch(m_command[2].m_commandID)
 			{
-				case CMD_CACHE:
-					ShowARPCache();
+				case CMD_STATUS:
+					OnShowInterfaceStatus();
 					break;
 
 				default:
@@ -338,106 +223,34 @@ void TapCLISessionContext::OnShowCommand()
 			}
 			break;
 
-		case CMD_FLASH:
-			ShowFlash();
-			break;
-
+		/*
 		case CMD_HARDWARE:
 			ShowHardware();
 			break;
-
-		case CMD_IP:
-			switch(m_command[2].m_commandID)
-			{
-				case CMD_ADDRESS:
-					ShowIPAddr();
-					break;
-
-				case CMD_ROUTE:
-					ShowIPRoute();
-					break;
-
-				default:
-					break;
-			}
-			break;
-
-		case CMD_SSH:
-			switch(m_command[2].m_commandID)
-			{
-				case CMD_FINGERPRINT:
-					ShowSSHFingerprint();
-					break;
-
-				default:
-					break;
-			}
-			break;
+		*/
 	}
-	*/
 }
-/*
-void TapCLISessionContext::ShowARPCache()
+
+void TapCLISessionContext::OnShowInterfaceStatus()
 {
-	auto cache = g_ethStack->GetARP()->GetCache();
-
-	uint32_t ways = cache->GetWays();
-	uint32_t lines = cache->GetLines();
-	m_stream->Printf("ARP cache is %d ways of %d lines, %d spaces total\n", ways, lines, ways*lines);
-
-	m_stream->Printf("Expiration  HWaddress           Address\n");
-
-	for(uint32_t i=0; i<ways; i++)
+	m_stream->Printf("----------------------------------------------------------------------------------\n");
+	m_stream->Printf("Port     Name                 Status          Duplex    Speed    Type\n");
+	m_stream->Printf("----------------------------------------------------------------------------------\n");
+	for(int i=0; i<4; i++)
 	{
-		auto way = cache->GetWay(i);
-		for(uint32_t j=0; j<lines; j++)
-		{
-			auto& line = way->m_lines[j];
-			if(line.m_valid)
-			{
-				m_stream->Printf("%10d  %02x:%02x:%02x:%02x:%02x:%02x   %d.%d.%d.%d\n",
-					line.m_lifetime,
-					line.m_mac[0], line.m_mac[1], line.m_mac[2], line.m_mac[3], line.m_mac[4], line.m_mac[5],
-					line.m_ip.m_octets[0], line.m_ip.m_octets[1], line.m_ip.m_octets[2], line.m_ip.m_octets[3]
-				);
-			}
-		}
+		int state = g_linkState >> (i*4);
+		auto up = state & 0x8;
+		auto speed = state & 3;
+
+		m_stream->Printf("%-5s    %-20s %-15s %-10s %4d    10/100/1000baseT\n",
+			g_portDescriptions[i],
+			g_portLongDescriptions[i],
+			up ? "connected" : "notconnect",
+			"full",
+			g_linkSpeeds[speed]);
 	}
 }
 
-void TapCLISessionContext::ShowFlash()
-{
-	//Print info about the flash memory in general
-	m_stream->Printf("Flash configuration storage is 2 banks of %d kB\n", g_kvs->GetBlockSize() / 1024);
-	if(g_kvs->IsLeftBankActive())
-		m_stream->Printf("    Active bank: Left\n");
-	else
-		m_stream->Printf("    Active bank: Right\n");
-	m_stream->Printf("    Log area:    %6d / %6d entries free (%d %%)\n",
-		g_kvs->GetFreeLogEntries(),
-		g_kvs->GetLogCapacity(),
-		g_kvs->GetFreeLogEntries()*100 / g_kvs->GetLogCapacity());
-	m_stream->Printf("    Data area:   %6d / %6d kB free      (%d %%)\n",
-		g_kvs->GetFreeDataSpace() / 1024,
-		g_kvs->GetDataCapacity() / 1024,
-		g_kvs->GetFreeDataSpace() * 100 / g_kvs->GetDataCapacity());
-
-	//Dump directory listing
-	const uint32_t nmax = 32;
-	KVSListEntry list[nmax];
-	uint32_t nfound = g_kvs->EnumObjects(list, nmax);
-	m_stream->Printf("    Objects:\n");
-	m_stream->Printf("        Key               Size  Revisions\n");
-	int size = 0;
-	for(uint32_t i=0; i<nfound; i++)
-	{
-		m_stream->Printf("        %-16s %5d  %d\n", list[i].key, list[i].size, list[i].revs);
-		size += list[i].size;
-	}
-	m_stream->Printf("    %d objects total (%d.%02d kB)\n",
-		nfound,
-		size/1024, (size % 1024) * 100 / 1024);
-}
 /*
 void TapCLISessionContext::ShowHardware()
 {

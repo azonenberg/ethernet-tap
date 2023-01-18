@@ -56,6 +56,11 @@ extern OctoSPI* g_qspi;
 
 extern TapCLISessionContext g_uartCliContext;
 
+extern const char* g_portDescriptions[4];
+extern const char* g_portLongDescriptions[4];
+extern const int g_linkSpeeds[4];
+extern uint16_t g_linkState;
+
 //Register IDs for the FPGA
 enum regids
 {

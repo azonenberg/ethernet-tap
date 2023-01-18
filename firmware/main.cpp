@@ -66,6 +66,14 @@ const char* g_portDescriptions[4] =
 	"monB"
 };
 
+const char* g_portLongDescriptions[4] =
+{
+	"Left tap port",
+	"Right tap port",
+	"Monitor of port A",
+	"Monitor of port B"
+};
+
 const int g_linkSpeeds[4] =
 {
 	10,
@@ -477,9 +485,13 @@ void OnFPGAInterrupt()
 		if( ((delta >> shift) & 0xf) == 0)
 			continue;
 
-		//Report link state change
+		//If speed changed while link is down, ignore that
 		int state = (status >> shift) & 0xf;
 		auto up = state & 0x8;
+		if(!up && ( ( (delta >> shift) & 0x8) == 0) )
+			continue;
+
+		//Report link state change
 		auto speed = state & 3;
 		if(up)
 			g_log("Interface %s: link up, %d Mbps\n", g_portDescriptions[nport], g_linkSpeeds[speed]);
