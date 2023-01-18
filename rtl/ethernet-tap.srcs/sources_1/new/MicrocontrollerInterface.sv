@@ -29,6 +29,7 @@
 *                                                                                                                      *
 ***********************************************************************************************************************/
 
+`include "GmiiBus.svh"
 `include "MicrocontrollerInterface.svh"
 
 module MicrocontrollerInterface(
@@ -36,28 +37,32 @@ module MicrocontrollerInterface(
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// System clocks
 
-	input wire			clk_50mhz,
-	input wire			clk_125mhz,
+	input wire					clk_50mhz,
+	input wire					clk_125mhz,
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Bus to MCU
 
-	input wire			qspi_sck,
-	input wire			qspi_cs_n,
-	inout wire[3:0]		qspi_dq,
-	output logic		irq = 0,
+	input wire					qspi_sck,
+	input wire					qspi_cs_n,
+	inout wire[3:0]				qspi_dq,
+	output logic				irq = 0,
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Interface to internal FPGA blocks
 
-	output cfgregs_t	cfgregs	= 0,
+	output cfgregs_t			cfgregs	= 0,
 
-	output logic[3:0]	mdio_rd_en		= 0,
-	output logic[4:0]	mdio_regaddr	= 0,
-	input wire[15:0]	mdio_eth0_rd_data,
-	input wire[15:0]	mdio_eth1_rd_data,
-	input wire[15:0]	mdio_eth2_rd_data,
-	input wire[15:0]	mdio_eth3_rd_data
+	output logic[3:0]			mdio_rd_en		= 0,
+	output logic[4:0]			mdio_regaddr	= 0,
+	input wire[15:0]			mdio_eth0_rd_data,
+	input wire[15:0]			mdio_eth1_rd_data,
+	input wire[15:0]			mdio_eth2_rd_data,
+	input wire[15:0]			mdio_eth3_rd_data,
+
+	input wire[3:0]				link_up,
+	input wire lspeed_t[3:0]	link_speed,
+	input wire[3:0]				link_updated
 );
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +118,16 @@ module MicrocontrollerInterface(
 	{
 		REG_FPGA_IDCODE 	= 16'h0000,	//R: 4 byte JTAG IDCODE
 		REG_FPGA_SERIAL 	= 16'h0001,	//R: 8 byte die serial number
+		REG_LINK_STATE		= 16'h0002,	//R: [15]		eth3 up
+										//	 [13:12]	eth3 speed
+										//	 [11]		eth2 up
+										//	 [9:8]		eth2 speed
+
+										//	 [7]		eth1 up
+										//	 [5:4]		eth1 speed
+										//	 [3]		eth0 up
+										//	 [1:0]		eth0 speed
+										//IRQ line cleared on read
 
 		REG_ETH0_RST		= 16'h1000,	//W: [0] active low reset flag
 		REG_ETH0_MDIO_RADDR	= 16'h1001,	//W: [4:0] read register access. Operation is dispatched on completion of write
@@ -148,6 +163,10 @@ module MicrocontrollerInterface(
 		cfgregs.mdio_rd_en			<= 0;
 		cfgregs.mdio_wr_en			<= 0;
 
+		//Set IRQ flag if any link state changes
+		if(link_updated)
+			irq						<= 1;
+
 		//Output read data
 		if(rd_ready) begin
 			count		<= count + 1;
@@ -162,6 +181,21 @@ module MicrocontrollerInterface(
 				REG_ETH1_MDIO_RDATA:	rd_data <= mdio_eth1_rd_data[count[0]*8 +: 8];
 				REG_ETH2_MDIO_RDATA:	rd_data <= mdio_eth2_rd_data[count[0]*8 +: 8];
 				REG_ETH3_MDIO_RDATA:	rd_data <= mdio_eth3_rd_data[count[0]*8 +: 8];
+
+				REG_LINK_STATE: begin
+					case(count)
+						0: begin
+							rd_data		<= { link_up[1], 1'b0, link_speed[1], link_up[0], 1'b0, link_speed[0] };
+						end
+
+						1: begin
+							rd_data		<= { link_up[3], 1'b0, link_speed[3], link_up[2], 1'b0, link_speed[2] };
+							irq		<= 0;
+						end
+
+						default:	rd_data <= 8'h0;
+					endcase
+				end
 
 				//default to no output
 				default:
@@ -181,6 +215,7 @@ module MicrocontrollerInterface(
 				REG_ETH1_MDIO_RDATA:	rd_mode <= 1;
 				REG_ETH2_MDIO_RDATA:	rd_mode <= 1;
 				REG_ETH3_MDIO_RDATA:	rd_mode <= 1;
+				REG_LINK_STATE:	rd_mode <= 1;
 
 				//Reset count during read operations
 				default: begin

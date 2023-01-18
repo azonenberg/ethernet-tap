@@ -30,11 +30,11 @@
 #include "ethernet-tap.h"
 
 //UART console
-UART* g_cliUART = NULL;
+UART* g_cliUART = nullptr;
 Logger g_log;
 UARTOutputStream g_uartStream;
 TapCLISessionContext g_uartCliContext;
-Timer* g_logTimer;
+Timer* g_logTimer = nullptr;
 
 //QSPI interface to FPGA
 OctoSPI* g_qspi;
@@ -48,11 +48,31 @@ void InitFPGA();
 void InitPHYs();
 void InitCLI();
 
+void OnFPGAInterrupt();
+
 uint16_t PhyRegisterRead(int port, uint8_t regid);
 void PhyRegisterWrite(int port, uint8_t regid, uint16_t regval);
 
 uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid);
 void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval);
+
+uint16_t g_linkState = 0;
+
+const char* g_portDescriptions[4] =
+{
+	"portA",
+	"portB",
+	"monA",
+	"monB"
+};
+
+const int g_linkSpeeds[4] =
+{
+	10,
+	100,
+	1000,
+	0		//reserved / invalid
+};
 
 int main()
 {
@@ -85,6 +105,10 @@ int main()
 	led2 = 1;
 	led3 = 1;
 
+	//Set up the QSPI IRQ GPIO pin
+	//(not actually used as an interrupt for now, just polling)
+	GPIOPin irq(&GPIOE, 12, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+
 	//Enable interrupts only after all setup work is done
 	EnableInterrupts();
 
@@ -96,6 +120,10 @@ int main()
 	{
 		//Wait for an interrupt
 		//asm("wfi");
+
+		//Poll for interrupts from the FPGA
+		if(irq)
+			OnFPGAInterrupt();
 
 		//Poll for UART input
 		if(g_cliUART->HasInput())
@@ -348,17 +376,9 @@ void InitFPGA()
 
 void InitPHYs()
 {
-	const char* descriptions[4] =
-	{
-		"Left device",
-		"Right device",
-		"Left monitor",
-		"Right monitor"
-	};
-
 	for(int port = 0; port < 4; port ++)
 	{
-		g_log("Initializing Ethernet port %d (%s)\n", port, descriptions[port]);
+		g_log("Initializing Ethernet port %d (%s)\n", port, g_portDescriptions[port]);
 		LogIndenter li(g_log);
 
 		auto base = (port * REG_ETH_OFFSET);
@@ -442,4 +462,30 @@ void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t re
 	PhyRegisterWrite(port, PHY_REG_MMD_DATA, regid);
 	PhyRegisterWrite(port, PHY_REG_MMD_CTRL, mmd | 0x4000);
 	PhyRegisterWrite(port, PHY_REG_MMD_DATA, regval);
+}
+
+void OnFPGAInterrupt()
+{
+	uint16_t status = g_qspi->BlockingRead16(REG_LINK_STATE, 0);
+	uint16_t delta = status ^ g_linkState;
+
+	//Look for changes to each interface and report status
+	for(int nport = 0; nport < 4; nport ++)
+	{
+		//Skip any ports with no change
+		int shift = (nport * 4);
+		if( ((delta >> shift) & 0xf) == 0)
+			continue;
+
+		//Report link state change
+		int state = (status >> shift) & 0xf;
+		auto up = state & 0x8;
+		auto speed = state & 3;
+		if(up)
+			g_log("Interface %s: link up, %d Mbps\n", g_portDescriptions[nport], g_linkSpeeds[speed]);
+		else
+			g_log("Interface %s: link down\n", g_portDescriptions[nport]);
+	}
+
+	g_linkState = status;
 }

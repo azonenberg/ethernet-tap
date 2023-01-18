@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+`default_nettype none
 /***********************************************************************************************************************
 *                                                                                                                      *
 * ethernet-tap v0.1                                                                                                    *
@@ -27,86 +29,50 @@
 *                                                                                                                      *
 ***********************************************************************************************************************/
 
-#ifndef ethernet_tap_h
-#define ethernet_tap_h
+/**
+	@brief Synchronizer for link speed/state
+ */
+module LinkStateSynchronizer(
+	input wire			clk_a,
+	input wire			link_up_a,
+	input wire[1:0]		link_speed_a,
 
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#include <stm32.h>
+	input wire			clk_b,
+	output wire			link_up_b,
+	output wire[1:0]	link_speed_b,
+	output wire			updated_b
+);
 
-#include <peripheral/Flash.h>
-#include <peripheral/GPIO.h>
-#include <peripheral/OctoSPI.h>
-#include <peripheral/OctoSPIManager.h>
-#include <peripheral/Power.h>
-#include <peripheral/RCC.h>
-#include <peripheral/Timer.h>
-#include <peripheral/UART.h>
-#include <util/Logger.h>
-#include <util/FIFO.h>
-#include <cli/UARTOutputStream.h>
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Register inputs in the source domain and detect changes
 
-#include "TapCLISessionContext.h"
+	logic		updated_a		= 0;
 
-extern UART* g_cliUART;
-extern Logger g_log;
-extern UARTOutputStream g_uartStream;
-extern OctoSPI* g_qspi;
+	logic		link_up_a_ff	= 0;
+	logic[1:0]	link_speed_a_ff	= 0;
 
-extern TapCLISessionContext g_uartCliContext;
+	always_ff @(posedge clk_a) begin
+		link_up_a_ff	<= link_up_a;
+		link_speed_a_ff	<= link_speed_a;
 
-//Register IDs for the FPGA
-enum regids
-{
-	//Constants that aren't actual registers
-	REG_ETH_OFFSET		= 0x1000,
+		updated_a		<= (link_up_a_ff != link_up_a) || (link_speed_a_ff != link_speed_a);
+	end
 
-	//Global registers
-	REG_FPGA_IDCODE		= 0x0000,
-	REG_FPGA_SERIAL		= 0x0001,
-	REG_LINK_STATE		= 0x0002,
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Actual CDC
 
-	//Port 0 (device A)
-	REG_ETH0_RST		= 0x1000,
-	REG_ETH0_MDIO_RADDR	= 0x1001,
-	REG_ETH0_MDIO_RDATA	= 0x1002,
-	REG_ETH0_MDIO_WR	= 0x1003,
+	RegisterSynchronizer #(
+		.WIDTH(3)
+	) sync (
+		.clk_a(clk_a),
+		.en_a(updated_a),
+		.ack_a(),
+		.reg_a({link_up_a, link_speed_a}),
 
-	//Port 1 (device B)
-	REG_ETH1_RST		= 0x2000,
-	REG_ETH1_MDIO_RADDR	= 0x2001,
-	REG_ETH1_MDIO_RDATA	= 0x2002,
-	REG_ETH1_MDIO_WR	= 0x2003,
+		.clk_b(clk_b),
+		.updated_b(updated_b),
+		.reset_b(1'b0),
+		.reg_b({link_up_b, link_speed_b})
+	);
 
-	//Port 2 (mon A)
-	REG_ETH2_RST		= 0x3000,
-	REG_ETH2_MDIO_RADDR	= 0x3001,
-	REG_ETH2_MDIO_RDATA	= 0x3002,
-	REG_ETH2_MDIO_WR	= 0x3003,
-
-	//Port 3 (mon B)
-	REG_ETH3_RST		= 0x4000,
-	REG_ETH3_MDIO_RADDR	= 0x4001,
-	REG_ETH3_MDIO_RDATA	= 0x4002,
-	REG_ETH3_MDIO_WR	= 0x4003
-};
-
-enum phyregs
-{
-	//direct
-	PHY_REG_BASIC_CONTROL	= 0x0000,
-	PHY_REG_ID1				= 0x0002,
-	PHY_REG_ID2				= 0x0003,
-	PHY_REG_AN_NEXT_PAGE	= 0x0007,
-	PHY_REG_MMD_CTRL		= 0x000d,
-	PHY_REG_MMD_DATA		= 0x000e,
-
-	//indirect mmd0
-	PHY_REG_MMD0_FLP_LO		= 0x0003,
-	PHY_REG_MMD0_FLP_HI		= 0x0004
-
-	//indirect mmd1
-};
-
-#endif
+endmodule

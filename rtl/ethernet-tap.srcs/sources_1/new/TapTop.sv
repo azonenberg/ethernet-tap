@@ -1,3 +1,33 @@
+`timescale 1ns / 1ps
+`default_nettype none
+/***********************************************************************************************************************
+*                                                                                                                      *
+* ethernet-tap v0.1                                                                                                    *
+*                                                                                                                      *
+* Copyright (c) 2023 Andrew D. Zonenberg and contributors                                                              *
+* All rights reserved.                                                                                                 *
+*                                                                                                                      *
+* Redistribution and use in source and binary forms, with or without modification, are permitted provided that the     *
+* following conditions are met:                                                                                        *
+*                                                                                                                      *
+*    * Redistributions of source code must retain the above copyright notice, this list of conditions, and the         *
+*      following disclaimer.                                                                                           *
+*                                                                                                                      *
+*    * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the       *
+*      following disclaimer in the documentation and/or other materials provided with the distribution.                *
+*                                                                                                                      *
+*    * Neither the name of the author nor the names of any contributors may be used to endorse or promote products     *
+*      derived from this software without specific prior written permission.                                           *
+*                                                                                                                      *
+* THIS SOFTWARE IS PROVIDED BY THE AUTHORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED   *
+* TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL *
+* THE AUTHORS BE HELD LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES        *
+* (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR       *
+* BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT *
+* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE       *
+* POSSIBILITY OF SUCH DAMAGE.                                                                                          *
+*                                                                                                                      *
+***********************************************************************************************************************/
 module TapTop(
 
 	//Passthrough port RGMII buses
@@ -94,6 +124,10 @@ module TapTop(
 	cfgregs_t cfgregs;
 	wire[15:0]	mdio_rd_data[3:0];
 
+	wire[3:0]		link_up_sync;
+	lspeed_t[3:0]	link_speed_sync;
+	wire[3:0]		link_updated_sync;
+
 	MicrocontrollerInterface mgmt(
 		.clk_50mhz(clk_50mhz),
 		.clk_125mhz(clk_125mhz),
@@ -106,7 +140,10 @@ module TapTop(
 		.mdio_eth0_rd_data(mdio_rd_data[0]),
 		.mdio_eth1_rd_data(mdio_rd_data[1]),
 		.mdio_eth2_rd_data(mdio_rd_data[2]),
-		.mdio_eth3_rd_data(mdio_rd_data[3])
+		.mdio_eth3_rd_data(mdio_rd_data[3]),
+		.link_up(link_up_sync),
+		.link_speed(link_speed_sync),
+		.link_updated(link_updated_sync)
 	);
 
 	//Hook up PHY resets (under software control)
@@ -131,14 +168,14 @@ module TapTop(
 	`include "GmiiBus.svh"
 	`include "EthernetBus.svh"
 
-	wire			portA_mac_rx_clk;
+	wire			link_up[3:0];
+	wire[1:0]		link_speed[3:0];
+
+	wire			mac_rx_clk[3:0];
 	EthernetRxBus	portA_mac_rx_bus;
 
 	EthernetTxBus	portA_mac_tx_bus = 0;
 	wire			portA_mac_tx_ready;
-
-	wire			portA_link_up;
-	lspeed_t		portA_link_speed;
 
 	RGMIIMACWrapper mac_portA(
 		.clk_125mhz(clk_125mhz),
@@ -151,13 +188,13 @@ module TapTop(
 		.rgmii_txd(portA_tx_data),
 		.rgmii_tx_ctl(portA_tx_en),
 
-		.mac_rx_clk(portA_mac_rx_clk),
+		.mac_rx_clk(mac_rx_clk[0]),
 		.mac_rx_bus(portA_mac_rx_bus),
 		.mac_tx_bus(portA_mac_tx_bus),
 		.mac_tx_ready(portA_mac_tx_ready),
 
-		.link_up(portA_link_up),
-		.link_speed(portA_link_speed)
+		.link_up(link_up[0]),
+		.link_speed(link_speed[0])
 	);
 
 	wire			portB_mac_rx_clk;
@@ -165,9 +202,6 @@ module TapTop(
 
 	EthernetTxBus	portB_mac_tx_bus = 0;
 	wire			portB_mac_tx_ready;
-
-	wire			portB_link_up;
-	lspeed_t		portB_link_speed;
 
 	RGMIIMACWrapper mac_portB(
 		.clk_125mhz(clk_125mhz),
@@ -180,13 +214,13 @@ module TapTop(
 		.rgmii_txd(portB_tx_data),
 		.rgmii_tx_ctl(portB_tx_en),
 
-		.mac_rx_clk(portB_mac_rx_clk),
+		.mac_rx_clk(mac_rx_clk[1]),
 		.mac_rx_bus(portB_mac_rx_bus),
 		.mac_tx_bus(portB_mac_tx_bus),
 		.mac_tx_ready(portB_mac_tx_ready),
 
-		.link_up(portB_link_up),
-		.link_speed(portB_link_speed)
+		.link_up(link_up[1]),
+		.link_speed(link_speed[1])
 	);
 
 	wire			monA_mac_rx_clk;
@@ -194,9 +228,6 @@ module TapTop(
 
 	EthernetTxBus	monA_mac_tx_bus = 0;
 	wire			monA_mac_tx_ready;
-
-	wire			monA_link_up;
-	lspeed_t		monA_link_speed;
 
 	RGMIIMACWrapper mac_monA(
 		.clk_125mhz(clk_125mhz),
@@ -209,13 +240,13 @@ module TapTop(
 		.rgmii_txd(monA_tx_data),
 		.rgmii_tx_ctl(monA_tx_en),
 
-		.mac_rx_clk(monA_mac_rx_clk),
+		.mac_rx_clk(mac_rx_clk[2]),
 		.mac_rx_bus(monA_mac_rx_bus),
 		.mac_tx_bus(monA_mac_tx_bus),
 		.mac_tx_ready(monA_mac_tx_ready),
 
-		.link_up(monA_link_up),
-		.link_speed(monA_link_speed)
+		.link_up(link_up[2]),
+		.link_speed(link_speed[2])
 	);
 
 	wire			monB_mac_rx_clk;
@@ -223,9 +254,6 @@ module TapTop(
 
 	EthernetTxBus	monB_mac_tx_bus = 0;
 	wire			monB_mac_tx_ready;
-
-	wire			monB_link_up;
-	lspeed_t		monB_link_speed;
 
 	RGMIIMACWrapper mac_monB(
 		.clk_125mhz(clk_125mhz),
@@ -238,14 +266,30 @@ module TapTop(
 		.rgmii_txd(monB_tx_data),
 		.rgmii_tx_ctl(monB_tx_en),
 
-		.mac_rx_clk(monB_mac_rx_clk),
+		.mac_rx_clk(mac_rx_clk[3]),
 		.mac_rx_bus(monB_mac_rx_bus),
 		.mac_tx_bus(monB_mac_tx_bus),
 		.mac_tx_ready(monB_mac_tx_ready),
 
-		.link_up(monB_link_up),
-		.link_speed(monB_link_speed)
+		.link_up(link_up[3]),
+		.link_speed(link_speed[3])
 	);
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Clock domain crossing for link state flags
+
+	for(genvar i=0; i<4; i=i+1) begin : lcdc
+		LinkStateSynchronizer lss(
+			.clk_a(mac_rx_clk[i]),
+			.link_up_a(link_up[i]),
+			.link_speed_a(link_speed[i]),
+
+			.clk_b(clk_125mhz),
+			.link_up_b(link_up_sync[i]),
+			.link_speed_b(link_speed_sync[i]),
+			.updated_b(link_updated_sync[i])
+		);
+	end
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// MDIO interfaces
