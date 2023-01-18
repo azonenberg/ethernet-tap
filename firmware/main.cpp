@@ -45,7 +45,10 @@ void InitLog();
 void DetectHardware();
 void InitQSPI();
 void InitFPGA();
+void InitPHYs();
 void InitCLI();
+
+uint16_t PhyRegisterRead(int port, uint8_t regid);
 
 int main()
 {
@@ -65,9 +68,10 @@ int main()
 	DetectHardware();
 	InitQSPI();
 	InitFPGA();
+	InitPHYs();
 	InitCLI();
 
-	//Set up the GPIO LEDs and turn them on
+	//Set up the GPIO LEDs and turn them all on for now
 	GPIOPin led0(&GPIOD, 3, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
 	GPIOPin led1(&GPIOD, 2, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
 	GPIOPin led2(&GPIOD, 1, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
@@ -88,13 +92,6 @@ int main()
 	{
 		//Wait for an interrupt
 		//asm("wfi");
-
-		/*
-		//Poll for Ethernet frames
-		auto frame = g_eth->GetRxFrame();
-		if(frame != NULL)
-			g_ethStack->OnRxFrame(frame);
-		*/
 
 		//Poll for UART input
 		if(g_cliUART->HasInput())
@@ -345,226 +342,54 @@ void InitFPGA()
 	g_log("Serial: %02x%02x%02x%02x%02x%02x%02x%02x\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
 }
 
-/*
-void InitEthernet()
+void InitPHYs()
 {
-	g_log("Initializing Ethernet\n");
-	LogIndenter li(g_log);
-
-	//Wait for the FPGA to be up and have our MAC address
-	g_log("Polling FPGA status\n");
-	while(true)
+	const char* descriptions[4] =
 	{
-		auto sr = GetFPGAStatus();
-		if(sr & 1)
-		{
-			g_log(Logger::ERROR, "FPGA failed to get MAC address\n");
-			while(1)
-			{}
-		}
+		"Left device",
+		"Right device",
+		"Left monitor",
+		"Right monitor"
+	};
 
-		//address is ready
-		if(sr & 2)
-			break;
-	}
-	g_log("FPGA is up and has MAC address ready for us\n");
-
-	//Read the MAC address from the FPGA
-	*g_spiCS = 0;
-	g_spi->BlockingWrite(REG_MAC_ADDR);
-	for(int i=0; i<6; i++)
-		g_macAddress[i] = g_spi->BlockingRead();
-	*g_spiCS = 1;
-
-	g_log("Our MAC address is %02x:%02x:%02x:%02x:%02x:%02x\n",
-		g_macAddress[0], g_macAddress[1], g_macAddress[2], g_macAddress[3], g_macAddress[4], g_macAddress[5]);
-
-	//Initialize the Ethernet pins. AF11 on all pins
-	g_log("Initializing Ethernet pins\n");
-	GPIOPin rmii_refclk(&GPIOA, 1, GPIOPin::MODE_PERIPHERAL, 11);
-	GPIOPin rmii_mdio(&GPIOA, 2, GPIOPin::MODE_PERIPHERAL, 11);
-	GPIOPin rmii_crs_dv(&GPIOA, 7, GPIOPin::MODE_PERIPHERAL, 11);
-	GPIOPin rmii_tx_en(&GPIOB, 11, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_FAST, 11);
-	GPIOPin rmii_txd0(&GPIOB, 12, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_FAST, 11);
-	GPIOPin rmii_txd1(&GPIOB, 13, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_FAST, 11);
-	GPIOPin rmii_mdc(&GPIOC, 1, GPIOPin::MODE_PERIPHERAL, 11);
-	GPIOPin rmii_rxd0(&GPIOC, 4, GPIOPin::MODE_PERIPHERAL, 11);
-	GPIOPin rmii_rxd1(&GPIOC, 5, GPIOPin::MODE_PERIPHERAL, 11);
-
-	//Enable SYSCFG before changing any settings on it
-	RCC.APB2ENR |= RCC_APB2_SYSCFG;
-
-	//Ignore the MDIO bus for now
-
-	//Read IP address configuration
-	//Default to 192.168.1.42 if not configured
-	//This is so much nicer looking with C++ 20 but Debian's arm-none-eabi-gcc cross compiler is currently stuck at
-	//C++ 17 even though the host compiler does 20 just fine...
-	if(!g_kvs->ReadObject("ip.addr", g_ipConfig.m_address.m_octets, 4))
+	for(int port = 0; port < 4; port ++)
 	{
-		g_log("IP address not configured, defaulting to 192.168.1.42\n");
-		g_ipConfig.m_address.m_octets[0] = 192;
-		g_ipConfig.m_address.m_octets[1] = 168;
-		g_ipConfig.m_address.m_octets[2] = 1;
-		g_ipConfig.m_address.m_octets[3] = 42;
+		g_log("Initializing Ethernet port %d (%s)\n", port, descriptions[port]);
+		LogIndenter li(g_log);
+
+		auto base = (port * REG_ETH_OFFSET);
+
+		//KSZ9031 datasheet does not mention a minimum reset pulse width
+		//Do 1 ms to be safe. Timer is 10 kHz so that's 10 ticks.
+		//We then need a min of 100us before poking any registers; do 1ms
+		g_qspi->BlockingWrite8(base + REG_ETH0_RST, 0, 0);
+		g_logTimer->Sleep(10);
+		g_qspi->BlockingWrite8(base + REG_ETH0_RST, 0, 1);
+		g_logTimer->Sleep(10);
+
+		//Identify the PHY and make sure it's what we expect
+		auto id1 = PhyRegisterRead(port, PHY_REG_ID1);
+		auto id2 = PhyRegisterRead(port, PHY_REG_ID2);
+		if( (id1 != 0x0022) || ( (id2 >> 4) != 0x162) )
+			g_log("Unexpected PHY identifier (ID1=%04x, ID2=%04x)\n", id1, id2);
+		else
+			g_log("Detected KSZ9031RNX rev %d\n", id2 & 0xf);
 	}
-
-	//Read subnet mask
-	//Default to /24 if not configured
-	if(!g_kvs->ReadObject("ip.netmask", g_ipConfig.m_netmask.m_octets, 4))
-	{
-		g_log("Subnet mask not configured, defaulting to 255.255.255.0\n");
-		g_ipConfig.m_netmask.m_octets[0] = 255;
-		g_ipConfig.m_netmask.m_octets[1] = 255;
-		g_ipConfig.m_netmask.m_octets[2] = 255;
-		g_ipConfig.m_netmask.m_octets[3] = 0;
-	}
-
-	//Read gateway address mask
-	//Default to 192.168.1.1 if not configured
-	if(!g_kvs->ReadObject("ip.gateway", g_ipConfig.m_gateway.m_octets, 4))
-	{
-		g_log("Default gateway not configured, defaulting to 192.168.1.1\n");
-		g_ipConfig.m_gateway.m_octets[0] = 192;
-		g_ipConfig.m_gateway.m_octets[1] = 168;
-		g_ipConfig.m_gateway.m_octets[2] = 1;
-		g_ipConfig.m_gateway.m_octets[3] = 1;
-	}
-
-	//Calculate broadcast address
-	for(int i=0; i<4; i++)
-		g_ipConfig.m_broadcast.m_octets[i] = g_ipConfig.m_address.m_octets[i] | ~g_ipConfig.m_netmask.m_octets[i];
-
-	//Set up all of the SFRs for the Ethernet IP itself
-	g_log("Initializing MAC and DMA\n");
-	static STM32EthernetInterface enet;
-	g_eth = &enet;
-
-	//Quick sanity check to make sure the link is up
-	TestEthernet(25);
-
-	//ARP cache
-	static ARPCache arpCache;
-
-	//Protocol stacks
-	static EthernetProtocol eth(*g_eth, g_macAddress);
-	static ARPProtocol arp(eth, g_ipConfig.m_address, arpCache);
-	static IPv4Protocol ipv4(eth, g_ipConfig, arpCache);
-	static ICMPv4Protocol icmpv4(ipv4);
-	static DemoTCPProtocol tcp(&ipv4);
-
-	//Register protocol handlers
-	eth.UseARP(&arp);
-	eth.UseIPv4(&ipv4);
-	ipv4.UseICMPv4(&icmpv4);
-	ipv4.UseTCP(&tcp);
-
-	//Save the stack so we can use it later
-	g_ethStack = &eth;
 }
 
-void InitSSH()
+/**
+	@brief Reads a single PHY register
+ */
+uint16_t PhyRegisterRead(int port, uint8_t regid)
 {
-	g_log("Initializing SSH server\n");
-	LogIndenter li(g_log);
+	auto base = (port * REG_ETH_OFFSET);
+	g_qspi->BlockingWrite8(base + REG_ETH0_MDIO_RADDR, 0, regid);
 
-	unsigned char pub[ECDSA_KEY_SIZE] = {0};
-	unsigned char priv[ECDSA_KEY_SIZE] = {0};
+	//Wait for read to complete. Deterministic run time, no need for polling
+	//MDIO clock runs at about 2 MHz.
+	//An entire transaction is 32 + 2 + 2 + 5 + 5 + 1 + 16 + 16 = 79 UIs including IFG (so 39 us)
+	//Two ticks (nominal 200us) is plenty even if we don't reset the timer (so worst case 100us).
+	g_logTimer->Sleep(2);
 
-	bool found = true;
-	if(!g_kvs->ReadObject("ssh.hostpub", pub, ECDSA_KEY_SIZE))
-		found = false;
-	if(!g_kvs->ReadObject("ssh.hostpriv", priv, ECDSA_KEY_SIZE))
-		found = false;
-
-	if(found)
-	{
-		g_log("Using existing SSH host key\n");
-		CryptoEngine::SetHostKey(pub, priv);
-	}
-
-	else
-	{
-		g_log("No SSH host key in flash, generating new key pair\n");
-		STM32CryptoEngine tmp;
-		tmp.GenerateHostKey();
-
-		if(!g_kvs->StoreObject("ssh.hostpub", CryptoEngine::GetHostPublicKey(), ECDSA_KEY_SIZE))
-			g_log(Logger::ERROR, "Unable to store SSH host public key to flash\n");
-		if(!g_kvs->StoreObject("ssh.hostpriv", CryptoEngine::GetHostPrivateKey(), ECDSA_KEY_SIZE))
-			g_log(Logger::ERROR, "Unable to store SSH host private key to flash\n");
-	}
-
-	char buf[64] = {0};
-	STM32CryptoEngine tmp;
-	tmp.GetHostKeyFingerprint(buf, sizeof(buf));
-	g_log("ED25519 key fingerprint is SHA256:%s.\n", buf);
+	return g_qspi->BlockingRead16(base + REG_ETH0_MDIO_RDATA, 0);
 }
-
-bool TestEthernet(uint32_t num_frames)
-{
-	g_log("Testing %d frames\n", num_frames);
-	LogIndenter li(g_log);
-
-	g_log("Putting FPGA in test mode\n");
-	*g_spiCS = 0;
-	g_spi->BlockingWrite(REG_RX_DISABLE);
-	g_spi->WaitForWrites();
-	*g_spiCS = 1;
-
-	const int timeout = 50;
-
-	for(uint32_t i=0; i<num_frames; i++)
-	{
-		//Ask for the frame
-		*g_spiCS = 0;
-		g_spi->BlockingWrite(REG_SEND_TEST);
-		g_spi->WaitForWrites();
-		*g_spiCS = 1;
-
-		//Get current time
-		auto tim = g_logTimer->GetCount();
-
-		while(true)
-		{
-			//Check for a frame
-			auto frame = g_eth->GetRxFrame();
-			if(frame != NULL)
-			{
-				if(frame->Length() != 64)
-				{
-					g_log(Logger::ERROR, "Bad length on frame %d (%d bytes, expected 64)\n", i, frame->Length());
-					return false;
-				}
-
-				g_eth->ReleaseRxFrame(frame);
-				break;
-			}
-
-			//If we see a CRC error in the counters but the frame didn't get DMA'd, it's still a fail
-			if(EMAC.MMCRFCECR != 0)
-			{
-				g_log(Logger::ERROR, "Bad CRC on frame %d (reported by counters)\n", i);
-				break;
-				return false;
-			}
-
-			//Time out if it's been too long
-			auto delta = g_logTimer->GetCount() - tim;
-			if(delta >= timeout)
-			{
-				g_log(Logger::ERROR, "Timed out after %d ms waiting for frame %d\n", timeout / 10, i);
-				return false;
-			}
-		}
-	}
-
-	g_log("Test successful, enabling RX path in FPGA\n");
-
-	*g_spiCS = 0;
-	g_spi->BlockingWrite(REG_RX_ENABLE);
-	g_spi->WaitForWrites();
-	*g_spiCS = 1;
-	return true;
-}
-*/

@@ -33,14 +33,14 @@
 /**
 	@brief Config register plus update flags to push CDC updates
  */
-/*typedef struct packed
+typedef struct packed
 {
-	logic[47:0]		mac_address;
-	logic			mac_address_updated;
+	logic[3:0]	phy_rst_n;
 
-	IPv4Config		ip_config;
-	logic			ip_config_updated;
-
-} cfgregs_t;*/
+	logic[3:0]	mdio_rd_en;
+	logic[3:0]	mdio_wr_en;
+	logic[4:0]	mdio_regaddr;
+	logic[15:0] mdio_wdata;
+} cfgregs_t;
 
 `endif

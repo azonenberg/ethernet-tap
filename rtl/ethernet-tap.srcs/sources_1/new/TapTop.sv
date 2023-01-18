@@ -39,27 +39,15 @@ module TapTop(
 	output wire			monB_tx_en,
 
 	//PHY reset signals
-	/*output logic		portA_rst_n = 0,
-	output logic		portB_rst_n = 0,
-	output logic		monA_rst_n = 0,
-	output logic		monB_rst_n = 0,*/
-
 	output wire			portA_rst_n,
 	output wire			portB_rst_n,
 	output wire			monA_rst_n,
 	output wire			monB_rst_n,
 
-	/*
 	//MDIO buses
-	inout wire			portA_mdio,
-	output wire			portA_mdc,
-	inout wire			portB_mdio,
-	output wire			portB_mdc,
-	inout wire			monA_mdio,
-	output wire			monA_mdc,
-	inout wire			monB_mdio,
-	output wire			monB_mdc,
-	*/
+	inout wire[3:0]		mdio,
+	output wire[3:0]	mdc,
+
 	//Interface to MCU
 	input wire			qspi_sck,
 	input wire			qspi_cs_n,
@@ -103,42 +91,29 @@ module TapTop(
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Interface to MCU for management
 
+	cfgregs_t cfgregs;
+	wire[15:0]	mdio_rd_data[3:0];
+
 	MicrocontrollerInterface mgmt(
 		.clk_50mhz(clk_50mhz),
 		.clk_125mhz(clk_125mhz),
 		.qspi_sck(qspi_sck),
 		.qspi_cs_n(qspi_cs_n),
 		.qspi_dq(qspi_dq),
-		.irq(mcu_irq)
+		.irq(mcu_irq),
 
-		//TODO: config registers
+		.cfgregs(cfgregs),
+		.mdio_eth0_rd_data(mdio_rd_data[0]),
+		.mdio_eth1_rd_data(mdio_rd_data[1]),
+		.mdio_eth2_rd_data(mdio_rd_data[2]),
+		.mdio_eth3_rd_data(mdio_rd_data[3])
 	);
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// PHY resets
-
-	/*
-	//Bring up the PHY after a little while
-	logic[15:0] eth_rst_count = 1;
-	always_ff @(posedge clk_25mhz) begin
-		if(eth_rst_count == 0) begin
-			portA_rst_n		<= 1;
-			portB_rst_n		<= 1;
-			monA_rst_n		<= 1;
-			monB_rst_n		<= 1;
-		end
-		else
-			eth_rst_count	<= eth_rst_count + 1'h1;
-	end
-	*/
-
-	vio_1 vio_reset(
-		.clk(clk_125mhz),
-		.probe_out0(portA_rst_n),
-		.probe_out1(portB_rst_n),
-		.probe_out2(monA_rst_n),
-		.probe_out3(monB_rst_n)
-	);
+	//Hook up PHY resets (under software control)
+	assign portA_rst_n = cfgregs.phy_rst_n[0];
+	assign portB_rst_n = cfgregs.phy_rst_n[1];
+	assign monA_rst_n = cfgregs.phy_rst_n[2];
+	assign monB_rst_n = cfgregs.phy_rst_n[3];
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Debug LED blinkies
@@ -273,42 +248,37 @@ module TapTop(
 	);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// VIOs and ILAs for debug
-
-	vio_0 vioA(
-		.clk(portA_mac_rx_clk),
-		.probe_in0(portA_link_up),
-		.probe_in1(portA_link_speed)
-		);
-
-	vio_0 vioB(
-		.clk(portB_mac_rx_clk),
-		.probe_in0(portB_link_up),
-		.probe_in1(portB_link_speed)
-		);
-
-	vio_0 vioMonA(
-		.clk(monA_mac_rx_clk),
-		.probe_in0(monA_link_up),
-		.probe_in1(monA_link_speed)
-		);
-
-	vio_0 vioMonB(
-		.clk(monB_mac_rx_clk),
-		.probe_in0(monB_link_up),
-		.probe_in1(monB_link_speed)
-		);
-
-	ila_0 ilaA(
-		.clk(portA_mac_rx_clk),
-		.probe0(portA_mac_rx_bus));
-
-	ila_0 ilaB(
-		.clk(portB_mac_rx_clk),
-		.probe0(portB_mac_rx_bus));
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// MDIO interfaces
+
+	for(genvar i=0; i<4; i=i+1) begin : mtxvrs
+		wire	mdio_tx_en;
+		wire	mdio_tx_data;
+		wire	mdio_rx_data;
+		wire	busy;
+
+		BidirectionalBuffer iobuf(
+			.fabric_in(mdio_rx_data),
+			.fabric_out(mdio_tx_data),
+			.pad(mdio[i]),
+			.oe(mdio_tx_en)
+		);
+
+		EthernetMDIOTransceiver txvr(
+			.clk_125mhz(clk_125mhz),
+			.phy_md_addr(5'b0),
+			.mdio_tx_data(mdio_tx_data),
+			.mdio_tx_en(mdio_tx_en),
+			.mdio_rx_data(mdio_rx_data),
+			.mdc(mdc[i]),
+
+			.mgmt_busy_fwd(busy),
+			.phy_reg_addr(cfgregs.mdio_regaddr),
+			.phy_wr_data(cfgregs.mdio_wdata),
+			.phy_rd_data(mdio_rd_data[i]),
+			.phy_reg_wr(cfgregs.mdio_wr_en[i]),
+			.phy_reg_rd(cfgregs.mdio_rd_en[i])
+		);
+	end
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// MCU interface

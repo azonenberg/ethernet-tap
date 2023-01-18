@@ -59,12 +59,38 @@ extern TapCLISessionContext g_uartCliContext;
 //Register IDs for the FPGA
 enum regids
 {
-	REG_FPGA_IDCODE	= 0x0000,
-	REG_FPGA_SERIAL	= 0x0001/*,
-	REG_MAC_ADDRESS	= 0x0002,
-	REG_IP_ADDRESS	= 0x0003,
-	REG_SUBNET_MASK	= 0x0004,
-	REG_BROADCAST	= 0x0005,
-	REG_GATEWAY		= 0x0006*/
+	//Constants that aren't actual registers
+	REG_ETH_OFFSET		= 0x1000,
+
+	//Global registers
+	REG_FPGA_IDCODE		= 0x0000,
+	REG_FPGA_SERIAL		= 0x0001,
+
+	//Port 0 (device A)
+	REG_ETH0_RST		= 0x1000,
+	REG_ETH0_MDIO_RADDR	= 0x1001,
+	REG_ETH0_MDIO_RDATA	= 0x1002,
+
+	//Port 1 (device B)
+	REG_ETH1_RST		= 0x2000,
+	REG_ETH1_MDIO_RADDR	= 0x2001,
+	REG_ETH1_MDIO_RDATA	= 0x2002,
+
+	//Port 2 (mon A)
+	REG_ETH2_RST		= 0x3000,
+	REG_ETH2_MDIO_RADDR	= 0x3001,
+	REG_ETH2_MDIO_RDATA	= 0x3002,
+
+	//Port 3 (mon B)
+	REG_ETH3_RST		= 0x4000,
+	REG_ETH3_MDIO_RADDR	= 0x4001,
+	REG_ETH3_MDIO_RDATA	= 0x4002
 };
+
+enum phyregs
+{
+	PHY_REG_ID1			= 0x0002,
+	PHY_REG_ID2			= 0x0003,
+};
+
 #endif

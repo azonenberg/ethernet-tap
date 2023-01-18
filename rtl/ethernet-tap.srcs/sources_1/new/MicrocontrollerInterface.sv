@@ -45,12 +45,19 @@ module MicrocontrollerInterface(
 	input wire			qspi_sck,
 	input wire			qspi_cs_n,
 	inout wire[3:0]		qspi_dq,
-	output logic		irq = 0/*,
+	output logic		irq = 0,
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Interface to internal FPGA blocks
 
-	output cfgregs_t	cfgregs	= 0*/
+	output cfgregs_t	cfgregs	= 0,
+
+	output logic[3:0]	mdio_rd_en		= 0,
+	output logic[4:0]	mdio_regaddr	= 0,
+	input wire[15:0]	mdio_eth0_rd_data,
+	input wire[15:0]	mdio_eth1_rd_data,
+	input wire[15:0]	mdio_eth2_rd_data,
+	input wire[15:0]	mdio_eth3_rd_data
 );
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -104,9 +111,25 @@ module MicrocontrollerInterface(
 
 	typedef enum logic[15:0]
 	{
-		REG_FPGA_IDCODE =	16'h0000,	//R: 4 byte JTAG IDCODE
-		REG_FPGA_SERIAL =	16'h0001,	//R: 8 byte die serial number
-		REG_MAC_ADDRESS	=	16'h0002	//W: 6 byte MAC address
+		REG_FPGA_IDCODE 	= 16'h0000,	//R: 4 byte JTAG IDCODE
+		REG_FPGA_SERIAL 	= 16'h0001,	//R: 8 byte die serial number
+
+		REG_ETH0_RST		= 16'h1000,	//W: [0] active low reset flag
+		REG_ETH0_MDIO_RADDR	= 16'h1001,	//W: [4:0] read register access. Operation is dispatched on completion of write
+		REG_ETH0_MDIO_RDATA	= 16'h1002, //R: 16 byte little endian read data
+
+		REG_ETH1_RST		= 16'h2000,	//descriptions as in eth0
+		REG_ETH1_MDIO_RADDR	= 16'h2001,
+		REG_ETH1_MDIO_RDATA	= 16'h2002,
+
+		REG_ETH2_RST		= 16'h3000,	//descriptions as in eth0
+		REG_ETH2_MDIO_RADDR	= 16'h3001,
+		REG_ETH2_MDIO_RDATA	= 16'h3002,
+
+		REG_ETH3_RST		= 16'h4000,	//descriptions as in eth0
+		REG_ETH3_MDIO_RADDR	= 16'h4001,
+		REG_ETH3_MDIO_RDATA	= 16'h4002
+
 	} opcode_t;
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +140,8 @@ module MicrocontrollerInterface(
 	always_ff @(posedge clk_125mhz) begin
 
 		rd_valid					<= 0;
+		cfgregs.mdio_rd_en			<= 0;
+		cfgregs.mdio_wr_en			<= 0;
 
 		//Output read data
 		if(rd_ready) begin
@@ -125,8 +150,13 @@ module MicrocontrollerInterface(
 
 			case(insn)
 
-				REG_FPGA_IDCODE:	rd_data <= idcode[(3 - count[1:0])*8 +: 8];
-				REG_FPGA_SERIAL:	rd_data <= die_serial[(7 - count[2:0])*8 +: 8];
+				REG_FPGA_IDCODE:		rd_data <= idcode[(3 - count[1:0])*8 +: 8];
+				REG_FPGA_SERIAL:		rd_data <= die_serial[(7 - count[2:0])*8 +: 8];
+
+				REG_ETH0_MDIO_RDATA:	rd_data <= mdio_eth0_rd_data[count[0]*8 +: 8];
+				REG_ETH1_MDIO_RDATA:	rd_data <= mdio_eth1_rd_data[count[0]*8 +: 8];
+				REG_ETH2_MDIO_RDATA:	rd_data <= mdio_eth2_rd_data[count[0]*8 +: 8];
+				REG_ETH3_MDIO_RDATA:	rd_data <= mdio_eth3_rd_data[count[0]*8 +: 8];
 
 				//default to no output
 				default:
@@ -140,8 +170,12 @@ module MicrocontrollerInterface(
 		if(insn_valid) begin
 			case(insn)
 
-				REG_FPGA_IDCODE:	rd_mode	<= 1;
-				REG_FPGA_SERIAL:	rd_mode	<= 1;
+				REG_FPGA_IDCODE:		rd_mode	<= 1;
+				REG_FPGA_SERIAL:		rd_mode	<= 1;
+				REG_ETH0_MDIO_RDATA:	rd_mode <= 1;
+				REG_ETH1_MDIO_RDATA:	rd_mode <= 1;
+				REG_ETH2_MDIO_RDATA:	rd_mode <= 1;
+				REG_ETH3_MDIO_RDATA:	rd_mode <= 1;
 
 				//Reset count during read operations
 				default: begin
@@ -155,33 +189,33 @@ module MicrocontrollerInterface(
 		//Process incoming data
 		if(wr_valid) begin
 			count		<= count + 1;
-			/*
+
 			case(insn)
 
-				//Ugly because non power of two size
-				REG_MAC_ADDRESS: begin
+				REG_ETH0_RST: cfgregs.phy_rst_n[0] <= wr_data[0];
+				REG_ETH1_RST: cfgregs.phy_rst_n[1] <= wr_data[0];
+				REG_ETH2_RST: cfgregs.phy_rst_n[2] <= wr_data[0];
+				REG_ETH3_RST: cfgregs.phy_rst_n[3] <= wr_data[0];
 
-					case(count)
-						0:	cfgregs.mac_address[40 +: 8] <= wr_data;
-						1:	cfgregs.mac_address[32 +: 8] <= wr_data;
-						2:	cfgregs.mac_address[24 +: 8] <= wr_data;
-						3:	cfgregs.mac_address[16 +: 8] <= wr_data;
-						4:	cfgregs.mac_address[8 +: 8] <= wr_data;
-						5: begin
-							cfgregs.mac_address[0 +: 8] <= wr_data;
-							cfgregs.mac_address_updated	<= 1;
-						end
-					endcase
+				REG_ETH0_MDIO_RADDR: begin
+					cfgregs.mdio_regaddr	<= wr_data[4:0];
+					cfgregs.mdio_rd_en[0]	<= 1;
+				end
+				REG_ETH1_MDIO_RADDR: begin
+					cfgregs.mdio_regaddr	<= wr_data[4:0];
+					cfgregs.mdio_rd_en[1]	<= 1;
+				end
+				REG_ETH2_MDIO_RADDR: begin
+					cfgregs.mdio_regaddr	<= wr_data[4:0];
+					cfgregs.mdio_rd_en[2]	<= 1;
+				end
+				REG_ETH3_MDIO_RADDR: begin
+					cfgregs.mdio_regaddr	<= wr_data[4:0];
+					cfgregs.mdio_rd_en[3]	<= 1;
+				end
 
-				end	//end REG_MAC_ADDRESS
-
-				REG_IP_ADDRESS: begin
-					cfgregs.ip_config.address[(3-count[1:0])*8 +: 8] <= wr_data;
-					if(count == 3)
-						cfgregs.ip_config_updated	<= 1;
-				end	//end REG_IP_ADDRESS
 			endcase
-			*/
+
 
 		end
 
@@ -191,23 +225,5 @@ module MicrocontrollerInterface(
 		end
 
 	end
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// Debug logic analyzer
-	/*
-	ila_2 ila(
-		.clk(clk_250mhz),
-		.probe0(start),
-		.probe1(insn_valid),
-		.probe2(insn),
-		.probe3(wr_valid),
-		.probe4(wr_data),
-		.probe5(rd_ready),
-		.probe6(rd_valid),
-		.probe7(rd_data),
-		.probe8(rd_mode),
-		.probe9(count)
-	);
-	*/
 
 endmodule
