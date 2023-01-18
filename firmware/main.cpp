@@ -35,29 +35,16 @@ Logger g_log;
 UARTOutputStream g_uartStream;
 TapCLISessionContext g_uartCliContext;
 Timer* g_logTimer;
-/*
-//I2C bus to EEPROM
-I2C* g_i2c;
 
 //QSPI interface to FPGA
 OctoSPI* g_qspi;
 
-//Ethernet stuff
-MACAddress g_macAddress;
-IPv4Config g_ipConfig;
-*/
-
 void InitClocks();
 void InitUART();
 void InitLog();
-/*
 void DetectHardware();
-void InitKVS();
-void InitI2C();
-void InitEEPROM();
 void InitQSPI();
 void InitFPGA();
-*/
 void InitCLI();
 
 int main()
@@ -75,14 +62,9 @@ int main()
 	InitClocks();
 	InitUART();
 	InitLog();
-	/*
 	DetectHardware();
-	InitKVS();
-	InitI2C();
-	InitEEPROM();
 	InitQSPI();
 	InitFPGA();
-	*/
 	InitCLI();
 
 	//Set up the GPIO LEDs and turn them on
@@ -177,7 +159,7 @@ void InitLog()
 	g_log.Initialize(g_cliUART, &logtim);
 	g_log("UART logging ready\n");
 }
-/*
+
 void DetectHardware()
 {
 	g_log("Identifying hardware\n");
@@ -277,7 +259,7 @@ void DetectHardware()
 	else
 		g_log(Logger::WARNING, "Unknown device (0x%06x)\n", device);
 }
-*/
+
 void InitCLI()
 {
 	g_log("Initializing CLI\n");
@@ -285,53 +267,6 @@ void InitCLI()
 	//Initialize the CLI on the console UART interface
 	g_uartStream.Initialize(g_cliUART);
 	g_uartCliContext.Initialize(&g_uartStream);
-}
-/*
-void InitI2C()
-{
-	g_log("Initializing I2C interface\n");
-
-	static GPIOPin i2c_scl(&GPIOD, 12, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_SLOW, 4, true);
-	static GPIOPin i2c_sda(&GPIOD, 13, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_SLOW, 4, true);
-
-	//Default kernel clock for I2C4 is pclk4 (68.75 MHz for our current config)
-	//Prescale by 16 to get 4.29 MHz
-	//Divide by 24 after that to get 179 kHz
-	static I2C i2c(&I2C4, 16, 12);
-	g_i2c = &i2c;
-}
-
-void InitEEPROM()
-{
-	g_log("Initializing MAC address EEPROM\n");
-
-	//Extended memory block for MAC address data isn't in the normal 0xa* memory address space
-	//uint8_t main_addr = 0xa0;
-	uint8_t ext_addr = 0xb0;
-
-	//Pointers within extended memory block
-	uint8_t serial_offset = 0x80;
-	uint8_t mac_offset = 0x9a;
-
-	//Read MAC address
-	g_i2c->BlockingWrite8(ext_addr, mac_offset);
-	g_i2c->BlockingRead(ext_addr, &g_macAddress[0], sizeof(g_macAddress));
-
-	//Read serial number
-	const int serial_len = 16;
-	uint8_t serial[serial_len] = {0};
-	g_i2c->BlockingWrite8(ext_addr, serial_offset);
-	g_i2c->BlockingRead(ext_addr, serial, serial_len);
-
-	{
-		LogIndenter li(g_log);
-		g_log("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-			g_macAddress[0], g_macAddress[1], g_macAddress[2], g_macAddress[3], g_macAddress[4], g_macAddress[5]);
-
-		g_log("Serial number: %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x\n",
-			serial[0], serial[1], serial[2], serial[3], serial[4], serial[5], serial[6], serial[7],
-			serial[8], serial[9], serial[10], serial[11], serial[12], serial[13], serial[14], serial[15]);
-	}
 }
 
 void InitQSPI()
@@ -362,10 +297,10 @@ void InitQSPI()
 	static GPIOPin qspi_dq3(&GPIOA, 1, GPIOPin::MODE_PERIPHERAL, GPIOPin::SLEW_VERYFAST, 9);
 
 	//Clock divider value
-	//Default is for AHB3 bus clock to be used as kernel clock (275 MHz for us)
+	//Default is for AHB3 bus clock to be used as kernel clock (64 MHz for us)
 	//With 3.3V Vdd, we can go up to 140 MHz.
-	//Dividing by 4 gives 68.75 MHz and a transfer rate of 275 Mbps.
-	uint8_t prescale = 4;
+	//Dividing by 2 gives 32 MHz and a transfer rate of 128 Mbps. Plenty for PHy configuration
+	uint8_t prescale = 2;
 
 	//Configure the OCTOSPI itself
 	static OctoSPI qspi(&OCTOSPI1, 0x02000000, prescale);
@@ -387,45 +322,6 @@ void InitFPGA()
 	g_log("Initializing FPGA\n");
 	LogIndenter li(g_log);
 
-	//Read IP address configuration
-	//Default to 192.168.1.42 if not configured
-	//This is so much nicer looking with C++ 20 but Debian's arm-none-eabi-gcc cross compiler is currently stuck at
-	//C++ 17 even though the host compiler does 20 just fine...
-	if(!g_kvs->ReadObject("ip.addr", g_ipConfig.m_address.m_octets, 4))
-	{
-		g_log("IP address not configured, defaulting to 192.168.1.42\n");
-		g_ipConfig.m_address.m_octets[0] = 192;
-		g_ipConfig.m_address.m_octets[1] = 168;
-		g_ipConfig.m_address.m_octets[2] = 1;
-		g_ipConfig.m_address.m_octets[3] = 42;
-	}
-
-	//Read subnet mask
-	//Default to /24 if not configured
-	if(!g_kvs->ReadObject("ip.netmask", g_ipConfig.m_netmask.m_octets, 4))
-	{
-		g_log("Subnet mask not configured, defaulting to 255.255.255.0\n");
-		g_ipConfig.m_netmask.m_octets[0] = 255;
-		g_ipConfig.m_netmask.m_octets[1] = 255;
-		g_ipConfig.m_netmask.m_octets[2] = 255;
-		g_ipConfig.m_netmask.m_octets[3] = 0;
-	}
-
-	//Read gateway address mask
-	//Default to 192.168.1.1 if not configured
-	if(!g_kvs->ReadObject("ip.gateway", g_ipConfig.m_gateway.m_octets, 4))
-	{
-		g_log("Default gateway not configured, defaulting to 192.168.1.1\n");
-		g_ipConfig.m_gateway.m_octets[0] = 192;
-		g_ipConfig.m_gateway.m_octets[1] = 168;
-		g_ipConfig.m_gateway.m_octets[2] = 1;
-		g_ipConfig.m_gateway.m_octets[3] = 1;
-	}
-
-	//Calculate broadcast address
-	for(int i=0; i<4; i++)
-		g_ipConfig.m_broadcast.m_octets[i] = g_ipConfig.m_address.m_octets[i] | ~g_ipConfig.m_netmask.m_octets[i];
-
 	//Read the FPGA IDCODE and serial number
 	uint8_t buf[8];
 	g_qspi->BlockingRead(REG_FPGA_IDCODE, 0, buf, 4);
@@ -433,23 +329,13 @@ void InitFPGA()
 	g_qspi->BlockingRead(REG_FPGA_SERIAL, 0, buf, 8);
 
 	//Push MAC address to FPGA
-	g_qspi->BlockingWrite(REG_MAC_ADDRESS, 0, &g_macAddress[0], sizeof(g_macAddress));
-
-	//Push IP config to FPGA
-	g_qspi->BlockingWrite(REG_IP_ADDRESS, 0, g_ipConfig.m_address.m_octets, sizeof(IPv4Address));
-	g_qspi->BlockingWrite(REG_SUBNET_MASK, 0, g_ipConfig.m_netmask.m_octets, sizeof(IPv4Address));
-	g_qspi->BlockingWrite(REG_BROADCAST, 0, g_ipConfig.m_broadcast.m_octets, sizeof(IPv4Address));
-	g_qspi->BlockingWrite(REG_GATEWAY, 0, g_ipConfig.m_gateway.m_octets, sizeof(IPv4Address));
+	//g_qspi->BlockingWrite(REG_MAC_ADDRESS, 0, &g_macAddress[0], sizeof(g_macAddress));
 
 	//Print status
 	switch(idcode & 0x0fffffff)
 	{
-		case 0x03647093:
-			g_log("IDCODE: %08x (XC7K70T rev %d)\n", idcode, idcode >> 28);
-			break;
-
-		case 0x0364c093:
-			g_log("IDCODE: %08x (XC7K160T rev %d)\n", idcode, idcode >> 28);
+		case 0x3620093:
+			g_log("IDCODE: %08x (XC7S15 rev %d)\n", idcode, idcode >> 28);
 			break;
 
 		default:
@@ -458,7 +344,7 @@ void InitFPGA()
 	}
 	g_log("Serial: %02x%02x%02x%02x%02x%02x%02x%02x\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
 }
-*/
+
 /*
 void InitEthernet()
 {

@@ -27,44 +27,20 @@
 *                                                                                                                      *
 ***********************************************************************************************************************/
 
-#ifndef ethernet_tap_h
-#define ethernet_tap_h
+`ifndef MicrocontrollerInterface_h
+`define MicrocontrollerInterface_h
 
-#include <stdio.h>
-#include <string.h>
-#include <stdint.h>
-#include <stm32.h>
-
-#include <peripheral/Flash.h>
-#include <peripheral/GPIO.h>
-#include <peripheral/OctoSPI.h>
-#include <peripheral/OctoSPIManager.h>
-#include <peripheral/Power.h>
-#include <peripheral/RCC.h>
-#include <peripheral/Timer.h>
-#include <peripheral/UART.h>
-#include <util/Logger.h>
-#include <util/FIFO.h>
-#include <cli/UARTOutputStream.h>
-
-#include "TapCLISessionContext.h"
-
-extern UART* g_cliUART;
-extern Logger g_log;
-extern UARTOutputStream g_uartStream;
-extern OctoSPI* g_qspi;
-
-extern TapCLISessionContext g_uartCliContext;
-
-//Register IDs for the FPGA
-enum regids
+/**
+	@brief Config register plus update flags to push CDC updates
+ */
+/*typedef struct packed
 {
-	REG_FPGA_IDCODE	= 0x0000,
-	REG_FPGA_SERIAL	= 0x0001/*,
-	REG_MAC_ADDRESS	= 0x0002,
-	REG_IP_ADDRESS	= 0x0003,
-	REG_SUBNET_MASK	= 0x0004,
-	REG_BROADCAST	= 0x0005,
-	REG_GATEWAY		= 0x0006*/
-};
-#endif
+	logic[47:0]		mac_address;
+	logic			mac_address_updated;
+
+	IPv4Config		ip_config;
+	logic			ip_config_updated;
+
+} cfgregs_t;*/
+
+`endif

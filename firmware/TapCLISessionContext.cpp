@@ -37,7 +37,6 @@
 //List of all valid commands
 enum cmdid_t
 {
-	CMD_EXIT,
 	CMD_RELOAD,
 	CMD_SHOW
 };
@@ -116,7 +115,6 @@ static const clikeyword_t g_showCommands[] =
 
 static const clikeyword_t g_rootCommands[] =
 {
-	{"exit",			CMD_EXIT,				NULL,						"Log out"},
 	{"reload",			CMD_RELOAD,				NULL,						"Restart the system"},
 	{"show",			CMD_SHOW,				g_showCommands,				"Print information"},
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
@@ -145,34 +143,8 @@ void TapCLISessionContext::PrintPrompt()
 
 void TapCLISessionContext::OnExecute()
 {
-	/*
 	switch(m_command[0].m_commandID)
 	{
-		case CMD_EXIT:
-			m_stream->Flush();
-			m_stream->Disconnect();
-			break;
-
-		case CMD_HOSTNAME:
-			SetHostName(m_command[1].m_text);
-			break;
-
-		case CMD_IP:
-			switch(m_command[1].m_commandID)
-			{
-				case CMD_ADDRESS:
-					OnIPAddress(m_command[2].m_text);
-					break;
-
-				case CMD_DEFAULT_GATEWAY:
-					OnDefaultGateway(m_command[2].m_text);
-					break;
-
-				default:
-					break;
-			}
-			break;
-
 		case CMD_RELOAD:
 			OnReload();
 			break;
@@ -181,15 +153,14 @@ void TapCLISessionContext::OnExecute()
 			OnShowCommand();
 			break;
 
-		case CMD_ZEROIZE:
+		/*case CMD_ZEROIZE:
 			if(m_command[1].m_commandID == CMD_ALL)
 				OnZeroize();
-			break;
+			break;*/
 
 		default:
 			break;
 	}
-	*/
 	m_stream->Flush();
 }
 /*

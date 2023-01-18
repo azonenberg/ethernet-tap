@@ -59,12 +59,12 @@ module TapTop(
 	output wire			monA_mdc,
 	inout wire			monB_mdio,
 	output wire			monB_mdc,
-
+	*/
 	//Interface to MCU
-	output wire			mcu_clk,
-	input wire			spi_cs_n,
-	input wire			spi_mosi,
-	output wire			spi_miso,*/
+	input wire			qspi_sck,
+	input wire			qspi_cs_n,
+	inout wire[3:0]		qspi_dq,
+	output wire			mcu_irq,
 
 	//Top level FPGA clock input
 	input wire			clk_25mhz,
@@ -99,6 +99,20 @@ module TapTop(
 	// I/O delay calibration
 
 	IODelayCalibration cal(.refclk(clk_200mhz));
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Interface to MCU for management
+
+	MicrocontrollerInterface mgmt(
+		.clk_50mhz(clk_50mhz),
+		.clk_125mhz(clk_125mhz),
+		.qspi_sck(qspi_sck),
+		.qspi_cs_n(qspi_cs_n),
+		.qspi_dq(qspi_dq),
+		.irq(mcu_irq)
+
+		//TODO: config registers
+	);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// PHY resets
