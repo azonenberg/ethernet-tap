@@ -116,19 +116,24 @@ module MicrocontrollerInterface(
 
 		REG_ETH0_RST		= 16'h1000,	//W: [0] active low reset flag
 		REG_ETH0_MDIO_RADDR	= 16'h1001,	//W: [4:0] read register access. Operation is dispatched on completion of write
-		REG_ETH0_MDIO_RDATA	= 16'h1002, //R: 16 byte little endian read data
+		REG_ETH0_MDIO_RDATA	= 16'h1002, //R: 16 bit little endian read data
+		REG_ETH0_MDIO_WR	= 16'h1003,	//W: byte 0 reg addr
+										//   byte 1-2 little endian write data
 
 		REG_ETH1_RST		= 16'h2000,	//descriptions as in eth0
 		REG_ETH1_MDIO_RADDR	= 16'h2001,
 		REG_ETH1_MDIO_RDATA	= 16'h2002,
+		REG_ETH1_MDIO_WR	= 16'h2003,
 
 		REG_ETH2_RST		= 16'h3000,	//descriptions as in eth0
 		REG_ETH2_MDIO_RADDR	= 16'h3001,
 		REG_ETH2_MDIO_RDATA	= 16'h3002,
+		REG_ETH2_MDIO_WR	= 16'h3003,
 
 		REG_ETH3_RST		= 16'h4000,	//descriptions as in eth0
 		REG_ETH3_MDIO_RADDR	= 16'h4001,
-		REG_ETH3_MDIO_RDATA	= 16'h4002
+		REG_ETH3_MDIO_RDATA	= 16'h4002,
+		REG_ETH3_MDIO_WR	= 16'h4003
 
 	} opcode_t;
 
@@ -212,6 +217,50 @@ module MicrocontrollerInterface(
 				REG_ETH3_MDIO_RADDR: begin
 					cfgregs.mdio_regaddr	<= wr_data[4:0];
 					cfgregs.mdio_rd_en[3]	<= 1;
+				end
+
+				REG_ETH0_MDIO_WR: begin
+					case(count)
+						0: cfgregs.mdio_regaddr			<= wr_data[4:0];
+						1: cfgregs.mdio_wdata[7:0]		<= wr_data;
+						2: begin
+							cfgregs.mdio_wdata[15:8]	<= wr_data;
+							cfgregs.mdio_wr_en[0]		<= 1;
+						end
+					endcase
+				end
+
+				REG_ETH1_MDIO_WR: begin
+					case(count)
+						0: cfgregs.mdio_regaddr			<= wr_data[4:0];
+						1: cfgregs.mdio_wdata[7:0]		<= wr_data;
+						2: begin
+							cfgregs.mdio_wdata[15:8]	<= wr_data;
+							cfgregs.mdio_wr_en[1]		<= 1;
+						end
+					endcase
+				end
+
+				REG_ETH2_MDIO_WR: begin
+					case(count)
+						0: cfgregs.mdio_regaddr			<= wr_data[4:0];
+						1: cfgregs.mdio_wdata[7:0]		<= wr_data;
+						2: begin
+							cfgregs.mdio_wdata[15:8]	<= wr_data;
+							cfgregs.mdio_wr_en[2]		<= 1;
+						end
+					endcase
+				end
+
+				REG_ETH3_MDIO_WR: begin
+					case(count)
+						0: cfgregs.mdio_regaddr			<= wr_data[4:0];
+						1: cfgregs.mdio_wdata[7:0]		<= wr_data;
+						2: begin
+							cfgregs.mdio_wdata[15:8]	<= wr_data;
+							cfgregs.mdio_wr_en[3]		<= 1;
+						end
+					endcase
 				end
 
 			endcase

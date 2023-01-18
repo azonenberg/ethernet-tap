@@ -49,6 +49,10 @@ void InitPHYs();
 void InitCLI();
 
 uint16_t PhyRegisterRead(int port, uint8_t regid);
+void PhyRegisterWrite(int port, uint8_t regid, uint16_t regval);
+
+uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid);
+void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval);
 
 int main()
 {
@@ -374,6 +378,11 @@ void InitPHYs()
 			g_log("Unexpected PHY identifier (ID1=%04x, ID2=%04x)\n", id1, id2);
 		else
 			g_log("Detected KSZ9031RNX rev %d\n", id2 & 0xf);
+
+		//Select 16ms AN FLP interval (default is 8 but this doesn't work with some PHYs)
+		g_log("Selecting 16ms AN burst interval\n");
+		PhyRegisterIndirectWrite(port, 0, PHY_REG_MMD0_FLP_LO, 0x1a80);
+		PhyRegisterIndirectWrite(port, 0, PHY_REG_MMD0_FLP_HI, 0x0006);
 	}
 }
 
@@ -392,4 +401,45 @@ uint16_t PhyRegisterRead(int port, uint8_t regid)
 	g_logTimer->Sleep(2);
 
 	return g_qspi->BlockingRead16(base + REG_ETH0_MDIO_RDATA, 0);
+}
+
+/**
+	@brief Writes a single PHY register
+ */
+void PhyRegisterWrite(int port, uint8_t regid, uint16_t regval)
+{
+	uint8_t msg[3] =
+	{
+		regid,
+		static_cast<uint8_t>(regval & 0xff),
+		static_cast<uint8_t>(regval >> 8)
+	};
+
+	auto base = (port * REG_ETH_OFFSET);
+	g_qspi->BlockingWrite(base + REG_ETH0_MDIO_WR, 0, msg, sizeof(msg));
+
+	//Wait for write to complete
+	g_logTimer->Sleep(2);
+}
+
+/**
+	@brief Reads an indirect PHY register
+ */
+uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid)
+{
+	PhyRegisterWrite(port, PHY_REG_MMD_CTRL, mmd);
+	PhyRegisterWrite(port, PHY_REG_MMD_DATA, regid);
+	PhyRegisterWrite(port, PHY_REG_MMD_CTRL, mmd | 0x4000);
+	return PhyRegisterRead(port, PHY_REG_MMD_DATA);
+}
+
+/**
+	@brief Writes an indirect PHY register
+ */
+void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval)
+{
+	PhyRegisterWrite(port, PHY_REG_MMD_CTRL, mmd);
+	PhyRegisterWrite(port, PHY_REG_MMD_DATA, regid);
+	PhyRegisterWrite(port, PHY_REG_MMD_CTRL, mmd | 0x4000);
+	PhyRegisterWrite(port, PHY_REG_MMD_DATA, regval);
 }
