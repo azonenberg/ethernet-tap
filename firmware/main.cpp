@@ -359,14 +359,15 @@ void InitFPGA()
 	g_log("Initializing FPGA\n");
 	LogIndenter li(g_log);
 
+	//Wait 500ms to make sure the FPGA is booted
+	g_log("Waiting for boot\n");
+	g_logTimer->Sleep(5000);
+
 	//Read the FPGA IDCODE and serial number
 	uint8_t buf[8];
 	g_qspi->BlockingRead(REG_FPGA_IDCODE, 0, buf, 4);
 	uint32_t idcode = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 	g_qspi->BlockingRead(REG_FPGA_SERIAL, 0, buf, 8);
-
-	//Push MAC address to FPGA
-	//g_qspi->BlockingWrite(REG_MAC_ADDRESS, 0, &g_macAddress[0], sizeof(g_macAddress));
 
 	//Print status
 	switch(idcode & 0x0fffffff)
