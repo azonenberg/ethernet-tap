@@ -55,25 +55,20 @@ public:
 
 protected:
 	virtual void OnExecute();
-	/*
 
-	void SetHostName(const char* name);
-	void OnIPAddress(const char* ipstring);
-	void OnDefaultGateway(const char* ipstring);
-	*/
+	void OnInterfaceCommand();
 	void OnShowCommand();
 	void OnShowInterfaceStatus();
-	/*
-	//void ShowARPCache();
-	void ShowFlash();
+	void OnShowMmdRegister();
+	void OnShowRegister();
+
 	//void ShowHardware();
-	void ShowIPAddr();
-	void ShowIPRoute();
-	//void ShowSSHFingerprint();
-	*/
+
 	void OnReload();
 
 	CLIOutputStream* m_stream;
+
+	int m_activeInterface;
 };
 
 #endif

@@ -30,6 +30,7 @@
 #include "ethernet-tap.h"
 #include "TapCLISessionContext.h"
 #include <ctype.h>
+#include <stdlib.h>
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Command table
@@ -37,24 +38,34 @@
 //List of all valid command tokens
 enum cmdid_t
 {
+	CMD_EXIT,
 	CMD_INTERFACE,
+	CMD_MMD,
+	CMD_MONA,
+	CMD_MONB,
+	CMD_PORTA,
+	CMD_PORTB,
+	CMD_REGISTER,
 	CMD_RELOAD,
 	CMD_SHOW,
 	CMD_STATUS
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "ip"
-/*
-static const clikeyword_t g_ipAddressCommands[] =
+// "interface"
+
+static const clikeyword_t g_interfaceCommands[] =
 {
-	{"<string>",		FREEFORM_TOKEN,			NULL,						"New IPv4 address and subnet mask in x.x.x.x/yy format"},
+	{"mona",			CMD_MONA,				NULL,						"Monitor of port A"},
+	{"monb",			CMD_MONB,				NULL,						"Monitor of port B"},
+	{"porta",			CMD_PORTA,				NULL,						"Left tap port"},
+	{"portb",			CMD_PORTB,				NULL,						"Right tap port"},
+
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
-*/
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "show"
+// "show" (top level)
 
 static const clikeyword_t g_showInterfaceCommands[] =
 {
@@ -72,12 +83,56 @@ static const clikeyword_t g_showCommands[] =
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "show" (interface mode)
+
+static const clikeyword_t g_showRegisterCommands[] =
+{
+	{"<regid>",			FREEFORM_TOKEN,			NULL,						"Hexadecimal register address"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+static const clikeyword_t g_showMmdRegisterCommands[] =
+{
+	{"register",		CMD_REGISTER,			g_showRegisterCommands,		"Register within the MMD"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+static const clikeyword_t g_showMmdCommands[] =
+{
+	{"<mmdid>",			FREEFORM_TOKEN,			g_showMmdRegisterCommands,	"Hexadecimal MMD index"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+static const clikeyword_t g_interfaceShowCommands[] =
+{
+	{"mmd",				CMD_MMD,				g_showMmdCommands,			"Read MMD registers"},
+	{"register",		CMD_REGISTER,			g_showRegisterCommands,		"Read PHY registers"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Top level command list
 
 static const clikeyword_t g_rootCommands[] =
 {
+	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
 	{"reload",			CMD_RELOAD,				NULL,						"Restart the system"},
 	{"show",			CMD_SHOW,				g_showCommands,				"Print information"},
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Top level command list for interface mode
+
+static const clikeyword_t g_interfaceRootCommands[] =
+{
+	{"exit",			CMD_EXIT,				NULL,						"Exit to the main menu"},
+	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
+	{"show",			CMD_SHOW,				g_interfaceShowCommands,	"Print information"},
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
 
@@ -87,6 +142,7 @@ static const clikeyword_t g_rootCommands[] =
 TapCLISessionContext::TapCLISessionContext()
 	: CLISessionContext(g_rootCommands)
 	, m_stream(NULL)
+	, m_activeInterface(0)
 {
 }
 
@@ -95,7 +151,10 @@ TapCLISessionContext::TapCLISessionContext()
 
 void TapCLISessionContext::PrintPrompt()
 {
-	m_stream->Printf("tap$ ");
+	if(m_rootCommands == g_interfaceRootCommands)
+		m_stream->Printf("tap(%s)$ ", g_portDescriptions[m_activeInterface]);
+	else
+		m_stream->Printf("tap$ ");
 	m_stream->Flush();
 }
 
@@ -106,6 +165,14 @@ void TapCLISessionContext::OnExecute()
 {
 	switch(m_command[0].m_commandID)
 	{
+		case CMD_EXIT:
+			m_rootCommands = g_rootCommands;
+			break;
+
+		case CMD_INTERFACE:
+			OnInterfaceCommand();
+			break;
+
 		case CMD_RELOAD:
 			OnReload();
 			break;
@@ -125,74 +192,33 @@ void TapCLISessionContext::OnExecute()
 	m_stream->Flush();
 }
 
-/*
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "hostname"
+// "interface"
 
-void TapCLISessionContext::SetHostName(const char* name)
+void TapCLISessionContext::OnInterfaceCommand()
 {
-	strncpy(g_hostname, name, sizeof(g_hostname)-1);
-	g_kvs->StoreObject("hostname", (uint8_t*)g_hostname, sizeof(g_hostname)-1);
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_PORTA:
+			m_activeInterface = 0;
+			break;
+
+		case CMD_PORTB:
+			m_activeInterface = 1;
+			break;
+
+		case CMD_MONA:
+			m_activeInterface = 2;
+			break;
+
+		case CMD_MONB:
+			m_activeInterface = 3;
+			break;
+	}
+
+	m_rootCommands = g_interfaceRootCommands;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "ip"
-
-void TapCLISessionContext::OnDefaultGateway(const char* ipstring)
-{
-	int len = strlen(ipstring);
-
-	int nfield = 0;
-	unsigned int fields[4] = {0};
-
-	//Parse
-	bool fail = false;
-	for(int i=0; i<len; i++)
-	{
-		//Dot = move to next field
-		if( (ipstring[i] == '.') && (nfield < 3) )
-			nfield ++;
-
-		//Digit = update current field
-		else if(isdigit(ipstring[i]))
-			fields[nfield] = (fields[nfield] * 10) + (ipstring[i] - '0');
-
-		else
-		{
-			fail = true;
-			break;
-		}
-	}
-
-	//Validate
-	if(nfield != 3)
-		fail = true;
-	for(int i=0; i<4; i++)
-	{
-		if(fields[i] > 255)
-		{
-			fail = true;
-			break;
-		}
-	}
-	if(fail)
-	{
-		m_stream->Printf("Usage: ip default-gateway x.x.x.x\n");
-		return;
-	}
-
-	//Set the IP
-	for(int i=0; i<4; i++)
-		g_ipConfig.m_gateway.m_octets[i] = fields[i];
-
-	//Write the new configuration to flash
-	if(!g_kvs->StoreObject("ip.gateway", g_ipConfig.m_gateway.m_octets, 4))
-		g_log(Logger::ERROR, "Failed to write gateway to flash\n");
-
-	//Push it to the FPGA
-	g_qspi->BlockingWrite(REG_GATEWAY, 0, g_ipConfig.m_gateway.m_octets, sizeof(IPv4Address));
-}
-*/
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "reload"
 
@@ -223,6 +249,14 @@ void TapCLISessionContext::OnShowCommand()
 			}
 			break;
 
+		case CMD_MMD:
+			OnShowMmdRegister();
+			break;
+
+		case CMD_REGISTER:
+			OnShowRegister();
+			break;
+
 		/*
 		case CMD_HARDWARE:
 			ShowHardware();
@@ -249,6 +283,23 @@ void TapCLISessionContext::OnShowInterfaceStatus()
 			"full",
 			g_linkSpeeds[speed]);
 	}
+}
+
+void TapCLISessionContext::OnShowMmdRegister()
+{
+	int mmd = strtol(m_command[2].m_text, nullptr, 16);
+	int regid = strtol(m_command[4].m_text, nullptr, 16);
+	auto value = PhyRegisterIndirectRead(m_activeInterface, mmd, regid);
+
+	m_stream->Printf("MMD %02x register 0x%04x = 0x%04x\n", mmd, regid, value);
+}
+
+void TapCLISessionContext::OnShowRegister()
+{
+	int regid = strtol(m_command[2].m_text, nullptr, 16);
+	auto value = PhyRegisterRead(m_activeInterface, regid);
+
+	m_stream->Printf("Register 0x%02x = 0x%04x\n", regid, value);
 }
 
 /*
@@ -364,57 +415,5 @@ void TapCLISessionContext::ShowHardware()
 
 	m_stream->Printf("Ethernet MAC address is %02x:%02x:%02x:%02x:%02x:%02x\n",
 		g_macAddress[0], g_macAddress[1], g_macAddress[2], g_macAddress[3], g_macAddress[4], g_macAddress[5]);
-}
-
-void TapCLISessionContext::ShowIPAddr()
-{
-	m_stream->Printf("IPv4 address: %d.%d.%d.%d\n",
-		g_ipConfig.m_address.m_octets[0],
-		g_ipConfig.m_address.m_octets[1],
-		g_ipConfig.m_address.m_octets[2],
-		g_ipConfig.m_address.m_octets[3]
-	);
-
-	m_stream->Printf("Subnet mask:  %d.%d.%d.%d\n",
-		g_ipConfig.m_netmask.m_octets[0],
-		g_ipConfig.m_netmask.m_octets[1],
-		g_ipConfig.m_netmask.m_octets[2],
-		g_ipConfig.m_netmask.m_octets[3]
-	);
-
-	m_stream->Printf("Broadcast:    %d.%d.%d.%d\n",
-		g_ipConfig.m_broadcast.m_octets[0],
-		g_ipConfig.m_broadcast.m_octets[1],
-		g_ipConfig.m_broadcast.m_octets[2],
-		g_ipConfig.m_broadcast.m_octets[3]
-	);
-}
-
-void TapCLISessionContext::ShowIPRoute()
-{
-	m_stream->Printf("IPv4 routing table\n");
-	m_stream->Printf("Destination     Gateway\n");
-	m_stream->Printf("0.0.0.0         %d.%d.%d.%d\n",
-		g_ipConfig.m_gateway.m_octets[0],
-		g_ipConfig.m_gateway.m_octets[1],
-		g_ipConfig.m_gateway.m_octets[2],
-		g_ipConfig.m_gateway.m_octets[3]);
-}
-
-void TapCLISessionContext::ShowSSHFingerprint()
-{
-	char buf[64] = {0};
-	STM32CryptoEngine tmp;
-	tmp.GetHostKeyFingerprint(buf, sizeof(buf));
-	m_stream->Printf("ED25519 key fingerprint is SHA256:%s.\n", buf);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "zeroize"
-
-void TapCLISessionContext::OnZeroize()
-{
-	g_kvs->WipeAll();
-	OnReload();
 }
 */

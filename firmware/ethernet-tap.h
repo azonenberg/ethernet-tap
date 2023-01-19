@@ -114,4 +114,10 @@ enum phyregs
 	//indirect mmd1
 };
 
+uint16_t PhyRegisterRead(int port, uint8_t regid);
+void PhyRegisterWrite(int port, uint8_t regid, uint16_t regval);
+
+uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid);
+void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval);
+
 #endif
