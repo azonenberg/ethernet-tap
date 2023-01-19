@@ -47,6 +47,7 @@ enum cmdid_t
 	CMD_PORTB,
 	CMD_REGISTER,
 	CMD_RELOAD,
+	CMD_SET,
 	CMD_SHOW,
 	CMD_STATUS
 };
@@ -80,6 +81,31 @@ static const clikeyword_t g_showCommands[] =
 	//{"hardware",		CMD_HARDWARE,			NULL,						"Print hardware information"},
 
 	{NULL,				INVALID_COMMAND,		NULL,	NULL}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "set"
+
+static const clikeyword_t g_setRegisterValues[] =
+{
+	{"<value>",			FREEFORM_TOKEN,			NULL,						"Hexadecimal register value"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+static const clikeyword_t g_setRegisterCommands[] =
+{
+	{"<regid>",			FREEFORM_TOKEN,			g_setRegisterValues,		"Hexadecimal register address"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+};
+
+static const clikeyword_t g_interfaceSetCommands[] =
+{
+	//{"mmd",				CMD_MMD,				g_showMmdCommands,			"Set MMD registers"},
+	{"register",		CMD_REGISTER,			g_setRegisterCommands,		"Set PHY registers"},
+
+	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -132,6 +158,7 @@ static const clikeyword_t g_interfaceRootCommands[] =
 {
 	{"exit",			CMD_EXIT,				NULL,						"Exit to the main menu"},
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
+	{"set",				CMD_SET,				g_interfaceSetCommands,		"Set raw hardware registers"},
 	{"show",			CMD_SHOW,				g_interfaceShowCommands,	"Print information"},
 	{NULL,				INVALID_COMMAND,		NULL,						NULL}
 };
@@ -177,14 +204,13 @@ void TapCLISessionContext::OnExecute()
 			OnReload();
 			break;
 
+		case CMD_SET:
+			OnSetCommand();
+			break;
+
 		case CMD_SHOW:
 			OnShowCommand();
 			break;
-
-		/*case CMD_ZEROIZE:
-			if(m_command[1].m_commandID == CMD_ALL)
-				OnZeroize();
-			break;*/
 
 		default:
 			break;
@@ -228,6 +254,33 @@ void TapCLISessionContext::OnReload()
 	SCB.AIRCR = 0x05fa0004;
 	while(1)
 	{}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "set"
+
+void TapCLISessionContext::OnSetCommand()
+{
+	switch(m_command[1].m_commandID)
+	{
+		/*
+		case CMD_MMD:
+			OnShowMmdRegister();
+			break;
+		*/
+
+		case CMD_REGISTER:
+			OnSetRegister();
+			break;
+	}
+}
+
+void TapCLISessionContext::OnSetRegister()
+{
+	int regid = strtol(m_command[2].m_text, nullptr, 16);
+	int value = strtol(m_command[3].m_text, nullptr, 16);
+	PhyRegisterWrite(m_activeInterface, regid, value);
+	m_stream->Printf("Set register 0x%02x to 0x%04x\n", regid, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
