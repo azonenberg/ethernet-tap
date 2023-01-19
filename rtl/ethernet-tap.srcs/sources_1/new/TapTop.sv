@@ -287,8 +287,23 @@ module TapTop(
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Datapath for forwarding packets between ports
 
+	logic datapath_reset = 0;
+	logic[3:0] reset_count = 0;
+	always_ff @(posedge clk_125mhz) begin
+		if(reset_count)
+			reset_count 	<= reset_count + 1;
+		else if(datapath_reset)
+			datapath_reset	<= 0;
+
+		if(link_updated_sync) begin
+			datapath_reset	<= 1;
+			reset_count		<= 1;
+		end
+	end
+
 	PacketDatapath dpath(
 		.clk_125mhz(clk_125mhz),
+		.rst(datapath_reset),
 
 		.portA_rx_clk(mac_rx_clk[0]),
 		.portA_mac_rx_bus(portA_mac_rx_bus),

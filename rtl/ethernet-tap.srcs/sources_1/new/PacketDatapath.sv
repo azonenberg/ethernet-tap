@@ -35,6 +35,7 @@ module PacketDatapath(
 
 	//Core clock, also used for transmit side
 	input wire					clk_125mhz,
+	input wire					rst,
 
 	//Inputs from each of the thru path ports
 	input wire					portA_rx_clk,
@@ -56,13 +57,37 @@ module PacketDatapath(
 	);
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Resets
+
+	//Polarity inversion b/c synchronizer expects active low resets
+	wire	rst_portA_rx_n;
+	wire	rst_portB_rx_n;
+
+	wire	rst_portA_rx;
+	wire	rst_portB_rx;
+	assign	rst_portA_rx = !rst_portA_rx_n;
+	assign	rst_portB_rx = !rst_portB_rx_n;
+
+	ResetSynchronizer sync_rst_a(
+		.rst_in_n(!rst),
+		.clk(portA_rx_clk),
+		.rst_out_n(rst_portA_rx_n));
+
+	ResetSynchronizer sync_rst_b(
+		.rst_in_n(!rst),
+		.clk(portB_rx_clk),
+		.rst_out_n(rst_portB_rx_n));
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Forwarding path
 
 	EthernetCrossoverClockCrossing_x8 a_to_b(
 		.rx_clk(portA_rx_clk),
 		.rx_bus(portA_mac_rx_bus),
+		.rx_rst(rst_portA_rx),
 
 		.tx_clk(clk_125mhz),
+		.tx_rst(rst),
 		.tx_ready(portB_tx_ready),
 		.tx_bus(portB_tx_bus)
 		);
@@ -70,8 +95,10 @@ module PacketDatapath(
 	EthernetCrossoverClockCrossing_x8 b_to_a(
 		.rx_clk(portB_rx_clk),
 		.rx_bus(portB_mac_rx_bus),
+		.rx_rst(rst_portB_rx),
 
 		.tx_clk(clk_125mhz),
+		.tx_rst(rst),
 		.tx_ready(portA_tx_ready),
 		.tx_bus(portA_tx_bus)
 		);
@@ -82,8 +109,10 @@ module PacketDatapath(
 	EthernetCrossoverClockCrossing_x8 a_to_mon(
 		.rx_clk(portA_rx_clk),
 		.rx_bus(portA_mac_rx_bus),
+		.rx_rst(rst_portA_rx),
 
 		.tx_clk(clk_125mhz),
+		.tx_rst(rst),
 		.tx_ready(monA_tx_ready),
 		.tx_bus(monA_tx_bus)
 		);
@@ -91,8 +120,10 @@ module PacketDatapath(
 	EthernetCrossoverClockCrossing_x8 b_to_mon(
 		.rx_clk(portB_rx_clk),
 		.rx_bus(portB_mac_rx_bus),
+		.rx_rst(rst_portB_rx),
 
 		.tx_clk(clk_125mhz),
+		.tx_rst(rst),
 		.tx_ready(monB_tx_ready),
 		.tx_bus(monB_tx_bus)
 		);
