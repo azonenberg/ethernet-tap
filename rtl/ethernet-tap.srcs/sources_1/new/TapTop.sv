@@ -88,7 +88,10 @@ module TapTop(
 	input wire			clk_25mhz,
 
 	//GPIO LEDs for whatever
-	output logic[3:0]	gpio_led = 0
+	output logic[3:0]	gpio_led = 0,
+
+	//Trigger pulse for external instruments
+	output logic		trig_out = 0
 );
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -146,21 +149,11 @@ module TapTop(
 		.link_updated(link_updated_sync)
 	);
 
-	//Hook up PHY resets (under software control)
+	//Hook up PHY resets
 	assign portA_rst_n = cfgregs.phy_rst_n[0];
 	assign portB_rst_n = cfgregs.phy_rst_n[1];
 	assign monA_rst_n = cfgregs.phy_rst_n[2];
 	assign monB_rst_n = cfgregs.phy_rst_n[3];
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// Debug LED blinkies
-
-	logic[24:0] count = 0;
-	always_ff @(posedge clk_125mhz) begin
-		count <= count + 1;
-		if(count == 0)
-			gpio_led <= gpio_led + 1;
-	end
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// MACs
@@ -174,7 +167,7 @@ module TapTop(
 	wire			mac_rx_clk[3:0];
 	EthernetRxBus	portA_mac_rx_bus;
 
-	EthernetTxBus	portA_mac_tx_bus = 0;
+	EthernetTxBus	portA_mac_tx_bus;
 	wire			portA_mac_tx_ready;
 
 	RGMIIMACWrapper mac_portA(
@@ -200,7 +193,7 @@ module TapTop(
 	wire			portB_mac_rx_clk;
 	EthernetRxBus	portB_mac_rx_bus;
 
-	EthernetTxBus	portB_mac_tx_bus = 0;
+	EthernetTxBus	portB_mac_tx_bus;
 	wire			portB_mac_tx_ready;
 
 	RGMIIMACWrapper mac_portB(
@@ -226,7 +219,7 @@ module TapTop(
 	wire			monA_mac_rx_clk;
 	EthernetRxBus	monA_mac_rx_bus;
 
-	EthernetTxBus	monA_mac_tx_bus = 0;
+	EthernetTxBus	monA_mac_tx_bus;
 	wire			monA_mac_tx_ready;
 
 	RGMIIMACWrapper mac_monA(
@@ -252,7 +245,7 @@ module TapTop(
 	wire			monB_mac_rx_clk;
 	EthernetRxBus	monB_mac_rx_bus;
 
-	EthernetTxBus	monB_mac_tx_bus = 0;
+	EthernetTxBus	monB_mac_tx_bus;
 	wire			monB_mac_tx_ready;
 
 	RGMIIMACWrapper mac_monB(
@@ -292,6 +285,28 @@ module TapTop(
 	end
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Datapath for forwarding packets between ports
+
+	PacketDatapath dpath(
+		.clk_125mhz(clk_125mhz),
+
+		.portA_rx_clk(mac_rx_clk[0]),
+		.portA_mac_rx_bus(portA_mac_rx_bus),
+		.portB_rx_clk(mac_rx_clk[1]),
+		.portB_mac_rx_bus(portB_mac_rx_bus),
+
+		.portA_tx_bus(portA_mac_tx_bus),
+		.portA_tx_ready(portA_mac_tx_ready),
+		.portB_tx_bus(portB_mac_tx_bus),
+		.portB_tx_ready(portB_mac_tx_ready),
+
+		.monA_tx_ready(monA_mac_tx_ready),
+		.monA_tx_bus(monA_mac_tx_bus),
+		.monB_tx_ready(monB_mac_tx_ready),
+		.monB_tx_bus(monB_mac_tx_bus)
+	);
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// MDIO interfaces
 
 	for(genvar i=0; i<4; i=i+1) begin : mtxvrs
@@ -325,6 +340,31 @@ module TapTop(
 	end
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// MCU interface
+	// Logic analyzers
+
+	//Trigger outputs for mux
+	wire	ila_portA_trig_out;
+	wire	ila_portB_trig_out;
+
+	//Port A
+	ila_0 ila_portA(
+		.clk(portA_rx_clk),
+		.probe0(mac_portA.gmii_rx_bus.dvalid),
+		.probe1(mac_portA.gmii_rx_bus.en),
+		.probe2(mac_portA.gmii_rx_bus.er),
+		.probe3(mac_portA.gmii_rx_bus.data),
+		.trig_out(ila_portA_trig_out),
+		.trig_out_ack(ila_portA_trig_out));
+
+	//Port A
+	ila_0 ila_portB(
+		.clk(portB_rx_clk),
+		.probe0(mac_portB.gmii_rx_bus.dvalid),
+		.probe1(mac_portB.gmii_rx_bus.en),
+		.probe2(mac_portB.gmii_rx_bus.er),
+		.probe3(mac_portB.gmii_rx_bus.data),
+		.trig_out(ila_portB_trig_out),
+		.trig_out_ack(ila_portB_trig_out));
+
 
 endmodule
