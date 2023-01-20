@@ -38,17 +38,23 @@
 //List of all valid command tokens
 enum cmdid_t
 {
+	CMD_AUTO,
+	CMD_10,
+	CMD_100,
+	CMD_1000,
 	CMD_EXIT,
 	CMD_INTERFACE,
 	CMD_MMD,
 	CMD_MONA,
 	CMD_MONB,
+	CMD_NO,
 	CMD_PORTA,
 	CMD_PORTB,
 	CMD_REGISTER,
 	CMD_RELOAD,
 	CMD_SET,
 	CMD_SHOW,
+	CMD_SPEED,
 	CMD_STATUS
 };
 
@@ -57,12 +63,12 @@ enum cmdid_t
 
 static const clikeyword_t g_interfaceCommands[] =
 {
-	{"mona",			CMD_MONA,				NULL,						"Monitor of port A"},
-	{"monb",			CMD_MONB,				NULL,						"Monitor of port B"},
-	{"porta",			CMD_PORTA,				NULL,						"Left tap port"},
-	{"portb",			CMD_PORTB,				NULL,						"Right tap port"},
+	{"mona",			CMD_MONA,				nullptr,					"Monitor of port A"},
+	{"monb",			CMD_MONB,				nullptr,					"Monitor of port B"},
+	{"porta",			CMD_PORTA,				nullptr,					"Left tap port"},
+	{"portb",			CMD_PORTB,				nullptr,					"Right tap port"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,17 +76,17 @@ static const clikeyword_t g_interfaceCommands[] =
 
 static const clikeyword_t g_showInterfaceCommands[] =
 {
-	{"status",			CMD_STATUS,				NULL,						"Print status of interfaces"},
+	{"status",			CMD_STATUS,				nullptr,					"Print status of interfaces"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_showCommands[] =
 {
 	{"interface",		CMD_INTERFACE,			g_showInterfaceCommands,	"Print interface information"},
-	//{"hardware",		CMD_HARDWARE,			NULL,						"Print hardware information"},
+	//{"hardware",		CMD_HARDWARE,			nullptr,					"Print hardware information"},
 
-	{NULL,				INVALID_COMMAND,		NULL,	NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,	nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -88,24 +94,24 @@ static const clikeyword_t g_showCommands[] =
 
 static const clikeyword_t g_setRegisterValues[] =
 {
-	{"<value>",			FREEFORM_TOKEN,			NULL,						"Hexadecimal register value"},
+	{"<value>",			FREEFORM_TOKEN,			nullptr,					"Hexadecimal register value"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_setRegisterCommands[] =
 {
 	{"<regid>",			FREEFORM_TOKEN,			g_setRegisterValues,		"Hexadecimal register address"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_interfaceSetCommands[] =
 {
-	//{"mmd",				CMD_MMD,				g_showMmdCommands,			"Set MMD registers"},
+	//{"mmd",			CMD_MMD,				g_showMmdCommands,			"Set MMD registers"},
 	{"register",		CMD_REGISTER,			g_setRegisterCommands,		"Set PHY registers"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,31 +119,53 @@ static const clikeyword_t g_interfaceSetCommands[] =
 
 static const clikeyword_t g_showRegisterCommands[] =
 {
-	{"<regid>",			FREEFORM_TOKEN,			NULL,						"Hexadecimal register address"},
+	{"<regid>",			FREEFORM_TOKEN,			nullptr,					"Hexadecimal register address"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_showMmdRegisterCommands[] =
 {
 	{"register",		CMD_REGISTER,			g_showRegisterCommands,		"Register within the MMD"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_showMmdCommands[] =
 {
 	{"<mmdid>",			FREEFORM_TOKEN,			g_showMmdRegisterCommands,	"Hexadecimal MMD index"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 static const clikeyword_t g_interfaceShowCommands[] =
 {
 	{"mmd",				CMD_MMD,				g_showMmdCommands,			"Read MMD registers"},
 	{"register",		CMD_REGISTER,			g_showRegisterCommands,		"Read PHY registers"},
+	{"speed",			CMD_SPEED,				nullptr,					"Display interface speed options"},
 
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "speed"
+
+static const clikeyword_t g_interfaceSpeedCommands[] =
+{
+	{"10",				CMD_10,					nullptr,					"10baseT"},
+	{"100",				CMD_100,				nullptr,					"100baseTX"},
+	{"1000",			CMD_1000,				nullptr,					"1000baseT"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "no" (interface mode)
+
+static const clikeyword_t g_interfaceNoCommands[] =
+{
+	{"speed",			CMD_SPEED,				g_interfaceSpeedCommands,	"Turn off advertisement of a specific speed"},
+
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -146,9 +174,9 @@ static const clikeyword_t g_interfaceShowCommands[] =
 static const clikeyword_t g_rootCommands[] =
 {
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
-	{"reload",			CMD_RELOAD,				NULL,						"Restart the system"},
+	{"reload",			CMD_RELOAD,				nullptr,					"Restart the system"},
 	{"show",			CMD_SHOW,				g_showCommands,				"Print information"},
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,11 +184,14 @@ static const clikeyword_t g_rootCommands[] =
 
 static const clikeyword_t g_interfaceRootCommands[] =
 {
-	{"exit",			CMD_EXIT,				NULL,						"Exit to the main menu"},
+	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
+	{"exit",			CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
+	{"no",				CMD_NO,					g_interfaceNoCommands,		"Turn settings off"},
 	{"set",				CMD_SET,				g_interfaceSetCommands,		"Set raw hardware registers"},
 	{"show",			CMD_SHOW,				g_interfaceShowCommands,	"Print information"},
-	{NULL,				INVALID_COMMAND,		NULL,						NULL}
+	{"speed",			CMD_SPEED,				g_interfaceSpeedCommands,	"Set port operating speed"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,7 +199,7 @@ static const clikeyword_t g_interfaceRootCommands[] =
 
 TapCLISessionContext::TapCLISessionContext()
 	: CLISessionContext(g_rootCommands)
-	, m_stream(NULL)
+	, m_stream(nullptr)
 	, m_activeInterface(0)
 {
 }
@@ -198,6 +229,10 @@ void TapCLISessionContext::OnExecute()
 
 		case CMD_INTERFACE:
 			OnInterfaceCommand();
+			break;
+
+		case CMD_NO:
+			OnNoCommand();
 			break;
 
 		case CMD_RELOAD:
@@ -240,9 +275,58 @@ void TapCLISessionContext::OnInterfaceCommand()
 		case CMD_MONB:
 			m_activeInterface = 3;
 			break;
+
+		default:
+			break;
 	}
 
 	m_rootCommands = g_interfaceRootCommands;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "no"
+
+void TapCLISessionContext::OnNoCommand()
+{
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_SPEED:
+			OnNoSpeed();
+
+		default:
+			break;
+	}
+}
+
+void TapCLISessionContext::OnNoSpeed()
+{
+	//10/100 speeds are in the AN base page advertisement register
+	if( (m_command[2].m_commandID == CMD_10) || (m_command[2].m_commandID == CMD_100) )
+	{
+		auto adv = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+		if(m_command[2].m_commandID == CMD_100)
+			adv &= ~0x100;
+		else
+			adv &= ~0x40;
+		PhyRegisterWrite(m_activeInterface, PHY_REG_AN_ADVERT, adv);
+	}
+
+	//Gigabit speeds are in the 1000baseT control register
+	else
+	{
+		auto mode = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+		mode &= ~0x200;
+		PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, mode);
+	}
+
+	//Restart negotiation
+	RestartNegotiation(m_activeInterface);
+}
+
+void TapCLISessionContext::RestartNegotiation(int nport)
+{
+	auto base = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, base | 0x0200);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -310,6 +394,10 @@ void TapCLISessionContext::OnShowCommand()
 			OnShowRegister();
 			break;
 
+		case CMD_SPEED:
+			OnShowSpeed();
+			break;
+
 		/*
 		case CMD_HARDWARE:
 			ShowHardware();
@@ -336,6 +424,28 @@ void TapCLISessionContext::OnShowInterfaceStatus()
 			"full",
 			g_linkSpeeds[speed]);
 	}
+}
+
+void TapCLISessionContext::OnShowSpeed()
+{
+	auto bc = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	if(bc & 0x1000)
+	{
+		m_stream->Printf("Autonegotiation enabled\n");
+		m_stream->Printf("Advertising:\n");
+
+		auto gig = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+		if(gig & 0x0200)
+			m_stream->Printf("    1000baseT full duplex\n");
+
+		auto ad = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+		if(ad & 0x100)
+			m_stream->Printf("    100baseTX full duplex\n");
+		if(ad & 0x40)
+			m_stream->Printf("    10baseT full duplex\n");
+	}
+	else
+		m_stream->Printf("Autonegotiation disabled\n");
 }
 
 void TapCLISessionContext::OnShowMmdRegister()
@@ -365,7 +475,7 @@ void TapCLISessionContext::ShowHardware()
 	if(device == 0x451)
 	{
 		//Look up the stepping number
-		const char* srev = NULL;
+		const char* srev = nullptr;
 		switch(rev)
 		{
 			case 0x1000:

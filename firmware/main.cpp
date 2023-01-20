@@ -189,6 +189,7 @@ void InitLog()
 
 	g_log.Initialize(g_cliUART, &logtim);
 	g_log("UART logging ready\n");
+	g_log("Firmware compiled at %s on %s\n", __TIME__, __DATE__);
 }
 
 void DetectHardware()
@@ -406,6 +407,10 @@ void InitPHYs()
 		g_log("Selecting 16ms AN burst interval\n");
 		PhyRegisterIndirectWrite(port, 0, PHY_REG_MMD0_FLP_LO, 0x1a80);
 		PhyRegisterIndirectWrite(port, 0, PHY_REG_MMD0_FLP_HI, 0x0006);
+
+		//Change AN advertisement to exclude half duplex modes
+		g_log("Advertising all speeds in full duplex only\n");
+		PhyRegisterWrite(port, PHY_REG_AN_ADVERT, 0x141);
 	}
 }
 

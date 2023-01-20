@@ -57,16 +57,21 @@ protected:
 	virtual void OnExecute();
 
 	void OnInterfaceCommand();
+	void OnNoCommand();
+	void OnNoSpeed();
 	void OnShowCommand();
 	void OnShowInterfaceStatus();
 	void OnSetCommand();
 	void OnSetRegister();
 	void OnShowMmdRegister();
 	void OnShowRegister();
+	void OnShowSpeed();
 
 	//void ShowHardware();
 
 	void OnReload();
+
+	void RestartNegotiation(int nport);
 
 	CLIOutputStream* m_stream;
 
