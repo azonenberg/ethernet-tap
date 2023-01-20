@@ -66,6 +66,8 @@ protected:
 	void OnShowMmdRegister();
 	void OnShowRegister();
 	void OnShowSpeed();
+	void OnSpeed();
+	void OnTest();
 
 	//void ShowHardware();
 

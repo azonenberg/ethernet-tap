@@ -48,6 +48,8 @@ void InitFPGA();
 void InitPHYs();
 void InitCLI();
 
+void UpdateSpeedLEDs();
+
 void OnFPGAInterrupt();
 
 uint16_t g_linkState = 0;
@@ -130,6 +132,9 @@ int main()
 		//Poll for UART input
 		if(g_cliUART->HasInput())
 			g_uartCliContext.OnKeystroke(g_cliUART->BlockingRead());
+
+		//Update the LEDs with speed settings
+		UpdateSpeedLEDs();
 	}
 
 	return 0;
@@ -500,4 +505,10 @@ void OnFPGAInterrupt()
 	}
 
 	g_linkState = status;
+}
+
+void UpdateSpeedLEDs()
+{
+	//TODO: LEDs on if advertised/forced off if not
+	//Blink if currently running at that speed
 }

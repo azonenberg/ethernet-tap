@@ -55,7 +55,8 @@ enum cmdid_t
 	CMD_SET,
 	CMD_SHOW,
 	CMD_SPEED,
-	CMD_STATUS
+	CMD_STATUS,
+	CMD_TEST
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +177,7 @@ static const clikeyword_t g_rootCommands[] =
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
 	{"reload",			CMD_RELOAD,				nullptr,					"Restart the system"},
 	{"show",			CMD_SHOW,				g_showCommands,				"Print information"},
+	{"test",			CMD_TEST,				g_interfaceCommands,		"Run a cable test"},
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
@@ -243,8 +245,16 @@ void TapCLISessionContext::OnExecute()
 			OnSetCommand();
 			break;
 
+		case CMD_SPEED:
+			OnSpeed();
+			break;
+
 		case CMD_SHOW:
 			OnShowCommand();
+			break;
+
+		case CMD_TEST:
+			OnTest();
 			break;
 
 		default:
@@ -580,3 +590,131 @@ void TapCLISessionContext::ShowHardware()
 		g_macAddress[0], g_macAddress[1], g_macAddress[2], g_macAddress[3], g_macAddress[4], g_macAddress[5]);
 }
 */
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "speed"
+
+void TapCLISessionContext::OnSpeed()
+{
+	//10/100 speeds are in the AN base page advertisement register
+	if( (m_command[1].m_commandID == CMD_10) || (m_command[1].m_commandID == CMD_100) )
+	{
+		auto adv = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+		if(m_command[2].m_commandID == CMD_100)
+			adv |= 0x100;
+		else
+			adv |= 0x40;
+		PhyRegisterWrite(m_activeInterface, PHY_REG_AN_ADVERT, adv);
+	}
+
+	//Gigabit speeds are in the 1000baseT control register
+	else
+	{
+		auto mode = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+		mode |= 0x200;
+		PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, mode);
+	}
+
+	//Restart negotiation
+	RestartNegotiation(m_activeInterface);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "speed"
+
+void TapCLISessionContext::OnTest()
+{
+	//Figure out what interface we're testing
+	int iface = 0;
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_PORTA:
+			iface = 0;
+			break;
+
+		case CMD_PORTB:
+			iface = 1;
+			break;
+
+		case CMD_MONA:
+			iface = 2;
+			break;
+
+		case CMD_MONB:
+			iface = 3;
+			break;
+
+		default:
+			break;
+	}
+
+	m_stream->Printf("Running TDR cable test on interface %s\n", g_portDescriptions[iface]);
+
+	//Save the old values for a few registers and configure for testing
+	//Need to have speed forced to 1000baseT, no negotiation, slave mode, no auto mdix
+	//Reference: https://microchipsupport.force.com/s/article/How-to-test-the-4-differential-pairs-between-KSZ9031-Gigabit-Ethernet-PHY-and-RJ-45-connector-for-opens-and-shorts
+	auto oldBase = PhyRegisterRead(iface, PHY_REG_BASIC_CONTROL);
+	auto oldMdix = PhyRegisterRead(iface, PHY_REG_MDIX);
+	auto oldCtrl = PhyRegisterRead(iface, PHY_REG_GIG_CONTROL);
+	PhyRegisterWrite(iface, PHY_REG_BASIC_CONTROL, 0x0140);
+	PhyRegisterWrite(iface, PHY_REG_MDIX, 0x0040);
+	PhyRegisterWrite(iface, PHY_REG_GIG_CONTROL, 0x1000);
+
+	m_stream->Printf("Uncertainty: +/- 4ns or 0.85m\n");
+	m_stream->Printf("Local pair     Status      Length (ns)        Length (m)\n");
+	for(int pair = 0; pair < 4; pair ++)
+	{
+		//Run ten tests and average.
+		//Report fault if any of them are failures
+		int faulttype = 0;
+		int faultdist = 0;
+		int navg = 10;
+		for(int j=0; j<navg; j ++)
+		{
+			//Request a test of this pair
+			PhyRegisterWrite(iface, PHY_REG_LINKMD, 0x8000 | (pair << 12) );
+
+			//Poll until test completes. Time out if no reply after 50 ms
+			uint16_t result = 0;
+			for(int i=0; i<50; i++)
+			{
+				result = PhyRegisterRead(iface, PHY_REG_LINKMD);
+				g_logTimer->Sleep(10);
+
+				if( (result & 0x8000) == 0)
+					break;
+			}
+
+			int faultcode = (result >> 8) & 3;
+			int rawDistance = (result & 0xff) - 13;
+			if(rawDistance < 0)
+				rawDistance = 0;
+
+			faultdist += rawDistance;
+
+			if(faultcode != 0)
+				faulttype = faultcode;
+		}
+
+		if(faulttype == 0)
+			m_stream->Printf("%c              Normal              N/A               N/A\n", 'A' + pair);
+		else
+		{
+			int oneWayNs = (faultdist * 4 / navg);
+			int cableCm = 21 * oneWayNs;
+
+			m_stream->Printf("%c              %-5s               %3d            %3d.%02d\n",
+				'A' + pair,
+				(faulttype == 1) ? "Open" : "Short",
+				oneWayNs,
+				cableCm / 100,
+				cableCm % 100
+				);
+		}
+	}
+
+	//Restore original mode register values
+	PhyRegisterWrite(iface, PHY_REG_BASIC_CONTROL, oldBase);
+	PhyRegisterWrite(iface, PHY_REG_MDIX, oldMdix);
+	PhyRegisterWrite(iface, PHY_REG_GIG_CONTROL, oldCtrl);
+}

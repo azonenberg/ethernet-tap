@@ -61,6 +61,8 @@ extern const char* g_portLongDescriptions[4];
 extern const int g_linkSpeeds[4];
 extern uint16_t g_linkState;
 
+extern Timer* g_logTimer;
+
 //Register IDs for the FPGA
 enum regids
 {
@@ -108,6 +110,8 @@ enum phyregs
 	PHY_REG_GIG_CONTROL		= 0x0009,
 	PHY_REG_MMD_CTRL		= 0x000d,
 	PHY_REG_MMD_DATA		= 0x000e,
+	PHY_REG_LINKMD			= 0x0012,
+	PHY_REG_MDIX			= 0x001c,
 
 	//indirect mmd0
 	PHY_REG_MMD0_FLP_LO		= 0x0003,
