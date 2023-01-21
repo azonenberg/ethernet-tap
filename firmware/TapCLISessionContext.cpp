@@ -43,6 +43,7 @@ enum cmdid_t
 	CMD_100,
 	CMD_1000,
 	CMD_EXIT,
+	CMD_HARDWARE,
 	CMD_INTERFACE,
 	CMD_MMD,
 	CMD_MONA,
@@ -56,7 +57,9 @@ enum cmdid_t
 	CMD_SHOW,
 	CMD_SPEED,
 	CMD_STATUS,
-	CMD_TEST
+	CMD_TEST,
+	CMD_VERSION,
+	CMD_VOLATILITY
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +88,9 @@ static const clikeyword_t g_showInterfaceCommands[] =
 static const clikeyword_t g_showCommands[] =
 {
 	{"interface",		CMD_INTERFACE,			g_showInterfaceCommands,	"Print interface information"},
-	//{"hardware",		CMD_HARDWARE,			nullptr,					"Print hardware information"},
+	{"hardware",		CMD_HARDWARE,			nullptr,					"Print hardware information"},
+	{"version",			CMD_VERSION,			nullptr,					"Print firmware version information"},
+	{"volatility",		CMD_VOLATILITY,			nullptr,					"Print Statement of Volatility"},
 
 	{nullptr,			INVALID_COMMAND,		nullptr,	nullptr}
 };
@@ -410,6 +415,10 @@ void TapCLISessionContext::OnShowCommand()
 {
 	switch(m_command[1].m_commandID)
 	{
+		case CMD_HARDWARE:
+			OnShowHardware();
+			break;
+
 		case CMD_INTERFACE:
 			switch(m_command[2].m_commandID)
 			{
@@ -434,11 +443,13 @@ void TapCLISessionContext::OnShowCommand()
 			OnShowSpeed();
 			break;
 
-		/*
-		case CMD_HARDWARE:
-			ShowHardware();
+		case CMD_VERSION:
+			OnShowVersion();
 			break;
-		*/
+
+		case CMD_VOLATILITY:
+			OnShowVolatility();
+			break;
 	}
 }
 
@@ -501,17 +512,59 @@ void TapCLISessionContext::OnShowRegister()
 	m_stream->Printf("Register 0x%02x = 0x%04x\n", regid, value);
 }
 
-/*
-void TapCLISessionContext::ShowHardware()
+void TapCLISessionContext::OnShowVersion()
 {
+	m_stream->Printf("Active Ethernet tap v0.1\n");
+	m_stream->Printf("by Andrew D. Zonenberg\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("This system is open hardware! Board design files and firmware/gateware source code are at:\n");
+	m_stream->Printf("https://github.com/azonenberg/ethernet-tap\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("Firmware compiled at %s on %s\n", __TIME__, __DATE__);
+	#ifdef __GNUC__
+	m_stream->Printf("Compiler: g++ %s\n", __VERSION__);
+	m_stream->Printf("CLI source code last modified: %s\n", __TIMESTAMP__);
+	#endif
+}
+
+void TapCLISessionContext::OnShowVolatility()
+{
+	m_stream->Printf("STATEMENT OF VOLATILITY\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("This system is designed so that all packet content and configuration is destroyed when power is removed.\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("As an additional security measure, the management microcontroller is incapable of writing to the FPGA\n");
+	m_stream->Printf("boot ROM and the register interface between the MCU and FPGA does not provide access to packet data\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("The following components on the board store packet content transiently in SRAM or registers during forwarding.\n");
+	m_stream->Printf("This data is overwritten in FIFO order by subsequent packets (4 kB buffer size), or when power is removed.\n");
+	m_stream->Printf("* Ethernet PHYs (U2, U6, U5, U9)\n");
+	m_stream->Printf("* FPGA (U4)\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("The internal logic analyzers on the GMII buses (if used) store the content of a single packet into SRAM\n");
+	m_stream->Printf("on the FPGA (U9) prior to readout. This data is overwritten the next time the internal logic analyzer\n");
+	m_stream->Printf("triggers, or when power is removed.\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("The following components contain internal Flash memory, but no packet content or configuration:\n");
+	m_stream->Printf("* FPGA boot ROM (U14):\n");
+	m_stream->Printf("* Management microcontroller (U13):\n");
+	m_stream->Printf("\n");
+	m_stream->Printf("These components may be erased via JTAG if complete zeroization of the board is desired, however doing so\n");
+	m_stream->Printf("will render the board unusable until new MCU and FPGA firmware are loaded via JTAG.\n");
+	m_stream->Printf("\n");
+}
+
+void TapCLISessionContext::OnShowHardware()
+{
+	//Print main MCU information
+	//A lot of this is duplicated by DetectHardware() during boot, but different print formatting
 	uint16_t rev = DBGMCU.IDCODE >> 16;
 	uint16_t device = DBGMCU.IDCODE & 0xfff;
 
-	m_stream->Printf("MCU:\n");
-	if(device == 0x451)
+	if(device == 0x483)
 	{
 		//Look up the stepping number
-		const char* srev = nullptr;
+		const char* srev = NULL;
 		switch(rev)
 		{
 			case 0x1000:
@@ -526,35 +579,57 @@ void TapCLISessionContext::ShowHardware()
 				srev = "(unknown)";
 		}
 
-		uint8_t pkg = (PKG_ID >> 8) & 0x7;
+		uint8_t pkg = SYSCFG.PKGR;
+		const char* package = "";
 		switch(pkg)
 		{
-			case 7:
-				m_stream->Printf("    STM32F767 / 777 LQFP208/TFBGA216 rev %s (0x%04x)\n", srev, rev);
-				break;
-			case 6:
-				m_stream->Printf("    STM32F769 / 779 LQFP208/TFBGA216 rev %s (0x%04x)\n", srev, rev);
-				break;
-			case 5:
-				m_stream->Printf("    STM32F767 / 777 LQFP176 rev %s (0x%04x)\n", srev, rev);
-				break;
-			case 4:
-				m_stream->Printf("    STM32F769 / 779 LQFP176 rev %s (0x%04x)\n", srev, rev);
-				break;
-			case 3:
-				m_stream->Printf("    STM32F778 / 779 WLCSP180 rev %s (0x%04x)\n", srev, rev);
-				break;
-			case 2:
-				m_stream->Printf("    STM32F767 / 777 LQFP144 rev %s (0x%04x)\n", srev, rev);
+			case 0:
+				package = "VQFPN68 (industrial)";
 				break;
 			case 1:
-				m_stream->Printf("    STM32F767 / 777 LQFP100 rev %s (0x%04x)\n", srev, rev);
+				package = "LQFP100/TFBGA100 (legacy)";
+				break;
+			case 2:
+				package = "LQFP100 (industrial)";
+				break;
+			case 3:
+				package = "TFBGA100 (industrial)";
+				break;
+			case 4:
+				package = "WLCSP115 (industrial)";
+				break;
+			case 5:
+				package = "LQFP144 (legacy)";
+				break;
+			case 6:
+				package = "UFBGA144 (legacy)";
+				break;
+			case 7:
+				package = "LQFP144 (industrial)";
+				break;
+			case 8:
+				package = "UFBGA169 (industrial)";
+				break;
+			case 9:
+				package = "UFBGA176+25 (industrial)";
+				break;
+			case 10:
+				package = "LQFP176 (industrial)";
 				break;
 			default:
-				m_stream->Printf("    Unknown/reserved STM32F76x/F77x rev %s (0x%04x)\n", srev, rev);
+				package = "unknown package";
 				break;
 		}
-		m_stream->Printf("    512 kB total SRAM, 128 kB DTCM, 16 kB ITCM, 4 kB backup SRAM\n");
+
+		m_stream->Printf("CPU: STM32%c%c%c%c stepping %s, %s\n",
+			(L_ID >> 24) & 0xff,
+			(L_ID >> 16) & 0xff,
+			(L_ID >> 8) & 0xff,
+			(L_ID >> 0) & 0xff,
+			srev,
+			package
+			);
+		m_stream->Printf("    564 kB total SRAM, 128 kB DTCM, up to 256 kB ITCM, 4 kB backup SRAM\n");
 		m_stream->Printf("    %d kB Flash\n", F_ID);
 
 		//U_ID fields documented in 45.1 of STM32 programming manual
@@ -573,49 +648,43 @@ void TapCLISessionContext::ShowHardware()
 			'\0'
 		};
 		m_stream->Printf("    Lot %s, wafer %d, die (%d, %d)\n", waferLot, waferNum, waferX, waferY);
-
-		if(g_hasRmiiErrata)
-			m_stream->Printf("    RMII RXD0 errata present\n");
 	}
 	else
-		m_stream->Printf("Unknown device (0x%06x)\n", device);
+		g_log(Logger::WARNING, "Unknown device (0x%06x)\n", device);
 
-	//Print CPU info
-	if( (SCB.CPUID & 0xff00fff0) == 0x4100c270 )
+	//Read the FPGA IDCODE and serial number
+	uint8_t buf[8];
+	g_qspi->BlockingRead(REG_FPGA_IDCODE, 0, buf, 4);
+	uint32_t idcode = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+	g_qspi->BlockingRead(REG_FPGA_SERIAL, 0, buf, 8);
+
+	//Print status
+	switch(idcode & 0x0fffffff)
 	{
-		m_stream->Printf("ARM Cortex-M7 r%dp%d\n", (SCB.CPUID >> 20) & 0xf, (SCB.CPUID & 0xf));
-		if(CPUID.CLIDR & 2)
-		{
-			m_stream->Printf("    L1 data cache present\n");
-			CPUID.CCSELR = 0;
+		case 0x3620093:
+			m_stream->Printf("FPGA IDCODE: %08x (XC7S15 rev %d)\n", idcode, idcode >> 28);
+			break;
 
-			int sets = ((CPUID.CCSIDR >> 13) & 0x7fff) + 1;
-			int ways = ((CPUID.CCSIDR >> 3) & 0x3ff) + 1;
-			int words = 1 << ((CPUID.CCSIDR & 3) + 2);
-			int total = (sets * ways * words * 4) / 1024;
-			m_stream->Printf("        %d sets, %d ways, %d words per line, %d kB total\n",
-				sets, ways, words, total);
-		}
-		if(CPUID.CLIDR & 1)
-		{
-			m_stream->Printf("    L1 instruction cache present\n");
-			CPUID.CCSELR = 1;
-
-			int sets = ((CPUID.CCSIDR >> 13) & 0x7fff) + 1;
-			int ways = ((CPUID.CCSIDR >> 3) & 0x3ff) + 1;
-			int words = 1 << ((CPUID.CCSIDR & 3) + 2);
-			int total = (sets * ways * words * 4) / 1024;
-			m_stream->Printf("        %d sets, %d ways, %d words per line, %d kB total\n",
-				sets, ways, words, total);
-		}
+		default:
+			m_stream->Printf("FPGA IDCODE: %08x (unknown device, rev %d)\n", idcode, idcode >> 28);
+			break;
 	}
-	else
-		m_stream->Printf("Unknown CPU (0x%08x)\n", SCB.CPUID);
+	m_stream->Printf("FPGA serial: %02x%02x%02x%02x%02x%02x%02x%02x\n", buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
 
-	m_stream->Printf("Ethernet MAC address is %02x:%02x:%02x:%02x:%02x:%02x\n",
-		g_macAddress[0], g_macAddress[1], g_macAddress[2], g_macAddress[3], g_macAddress[4], g_macAddress[5]);
+	//Identify each PHY
+	for(int port = 0; port < 4; port ++)
+	{
+		m_stream->Printf("Ethernet interface %d (%s):\n", port, g_portDescriptions[port]);
+
+		//Identify the PHY and make sure it's what we expect
+		auto id1 = PhyRegisterRead(port, PHY_REG_ID1);
+		auto id2 = PhyRegisterRead(port, PHY_REG_ID2);
+		if( (id1 != 0x0022) || ( (id2 >> 4) != 0x162) )
+			m_stream->Printf("    Unexpected PHY identifier (ID1=%04x, ID2=%04x)\n", id1, id2);
+		else
+			m_stream->Printf("    KSZ9031RNX rev %d\n", id2 & 0xf);
+	}
 }
-*/
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "speed"

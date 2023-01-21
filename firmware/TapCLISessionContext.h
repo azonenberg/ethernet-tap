@@ -69,10 +69,11 @@ protected:
 	void OnShowMmdRegister();
 	void OnShowRegister();
 	void OnShowSpeed();
+	void OnShowHardware();
+	void OnShowVersion();
+	void OnShowVolatility();
 	void OnSpeed();
 	void OnTest();
-
-	//void ShowHardware();
 
 	void OnReload();
 
