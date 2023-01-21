@@ -534,7 +534,7 @@ void TapCLISessionContext::OnShowVolatility()
 	m_stream->Printf("This system is designed so that all packet content and configuration is destroyed when power is removed.\n");
 	m_stream->Printf("\n");
 	m_stream->Printf("As an additional security measure, the management microcontroller is incapable of writing to the FPGA\n");
-	m_stream->Printf("boot ROM and the register interface between the MCU and FPGA does not provide access to packet data\n");
+	m_stream->Printf("boot ROM and the register interface between the MCU and FPGA does not provide access to packet data.\n");
 	m_stream->Printf("\n");
 	m_stream->Printf("The following components on the board store packet content transiently in SRAM or registers during forwarding.\n");
 	m_stream->Printf("This data is overwritten in FIFO order by subsequent packets (4 kB buffer size), or when power is removed.\n");
@@ -546,8 +546,8 @@ void TapCLISessionContext::OnShowVolatility()
 	m_stream->Printf("triggers, or when power is removed.\n");
 	m_stream->Printf("\n");
 	m_stream->Printf("The following components contain internal Flash memory, but no packet content or configuration:\n");
-	m_stream->Printf("* FPGA boot ROM (U14):\n");
-	m_stream->Printf("* Management microcontroller (U13):\n");
+	m_stream->Printf("* FPGA boot ROM (U14)\n");
+	m_stream->Printf("* Management microcontroller (U13)\n");
 	m_stream->Printf("\n");
 	m_stream->Printf("These components may be erased via JTAG if complete zeroization of the board is desired, however doing so\n");
 	m_stream->Printf("will render the board unusable until new MCU and FPGA firmware are loaded via JTAG.\n");
