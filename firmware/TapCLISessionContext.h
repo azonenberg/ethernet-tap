@@ -64,6 +64,7 @@ protected:
 	void OnShowCommand();
 	void OnShowInterfaceStatus();
 	void OnSetCommand();
+	void OnSetMmdRegister();
 	void OnSetRegister();
 	void OnShowMmdRegister();
 	void OnShowRegister();

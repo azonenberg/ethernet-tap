@@ -107,9 +107,23 @@ static const clikeyword_t g_setRegisterCommands[] =
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
+static const clikeyword_t g_setMmdRegisterCommands[] =
+{
+	{"register",		CMD_REGISTER,			g_setRegisterCommands,		"Register within the MMD"},
+
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+static const clikeyword_t g_setMmdCommands[] =
+{
+	{"<mmdid>",			FREEFORM_TOKEN,			g_setMmdRegisterCommands,	"Hexadecimal MMD index"},
+
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
 static const clikeyword_t g_interfaceSetCommands[] =
 {
-	//{"mmd",			CMD_MMD,				g_showMmdCommands,			"Set MMD registers"},
+	{"mmd",				CMD_MMD,				g_setMmdCommands,			"Set MMD registers"},
 	{"register",		CMD_REGISTER,			g_setRegisterCommands,		"Set PHY registers"},
 
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
@@ -362,11 +376,9 @@ void TapCLISessionContext::OnSetCommand()
 {
 	switch(m_command[1].m_commandID)
 	{
-		/*
 		case CMD_MMD:
-			OnShowMmdRegister();
+			OnSetMmdRegister();
 			break;
-		*/
 
 		case CMD_REGISTER:
 			OnSetRegister();
@@ -380,6 +392,15 @@ void TapCLISessionContext::OnSetRegister()
 	int value = strtol(m_command[3].m_text, nullptr, 16);
 	PhyRegisterWrite(m_activeInterface, regid, value);
 	m_stream->Printf("Set register 0x%02x to 0x%04x\n", regid, value);
+}
+
+void TapCLISessionContext::OnSetMmdRegister()
+{
+	int mmd = strtol(m_command[2].m_text, nullptr, 16);
+	int regid = strtol(m_command[4].m_text, nullptr, 16);
+	auto value = strtol(m_command[5].m_text, nullptr, 16);
+	PhyRegisterIndirectWrite(m_activeInterface, mmd, regid, value);
+	m_stream->Printf("Set MMD %02x register 0x%04x to 0x%04x\n", mmd, regid, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
