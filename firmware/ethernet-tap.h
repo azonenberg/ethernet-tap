@@ -102,21 +102,29 @@ enum regids
 enum phyregs
 {
 	//direct
-	PHY_REG_BASIC_CONTROL	= 0x0000,
-	PHY_REG_ID1				= 0x0002,
-	PHY_REG_ID2				= 0x0003,
-	PHY_REG_AN_ADVERT		= 0x0004,
-	PHY_REG_AN_NEXT_PAGE	= 0x0007,
-	PHY_REG_GIG_CONTROL		= 0x0009,
-	PHY_REG_MMD_CTRL		= 0x000d,
-	PHY_REG_MMD_DATA		= 0x000e,
-	PHY_REG_LINKMD			= 0x0012,
-	PHY_REG_MDIX			= 0x001c,
-	PHY_REG_CTRL			= 0x001f,
+	PHY_REG_BASIC_CONTROL			= 0x0000,
+	PHY_REG_BASIC_STATUS			= 0x0001,
+	PHY_REG_ID1						= 0x0002,
+	PHY_REG_ID2						= 0x0003,
+	PHY_REG_AN_ADVERT				= 0x0004,
+	PHY_REG_AN_PARTNER				= 0x0005,
+	PHY_REG_AN_EXPANSION			= 0x0006,
+	PHY_REG_AN_NEXT_PAGE			= 0x0007,
+	PHY_REG_AN_PARTNER_NEXT_PAGE	= 0x0008,
+	PHY_REG_GIG_CONTROL				= 0x0009,
+	PHY_REG_GIG_STATUS				= 0x000a,
+	PHY_REG_MMD_CTRL				= 0x000d,
+	PHY_REG_MMD_DATA				= 0x000e,
+	PHY_REG_REMOTE_LOOPBACK			= 0x0011,
+	PHY_REG_LINKMD					= 0x0012,
+	PHY_REG_DIGITAL_PCS_PMA			= 0x0013,
+	PHY_REG_RX_ER					= 0x0015,
+	PHY_REG_MDIX					= 0x001c,
+	PHY_REG_CTRL					= 0x001f,
 
 	//indirect mmd0
-	PHY_REG_MMD0_FLP_LO		= 0x0003,
-	PHY_REG_MMD0_FLP_HI		= 0x0004
+	PHY_REG_MMD0_FLP_LO				= 0x0003,
+	PHY_REG_MMD0_FLP_HI				= 0x0004
 
 	//indirect mmd1
 };
@@ -128,5 +136,7 @@ uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid);
 void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval);
 
 void RestartNegotiation(int nport);
+
+void PollIO();
 
 #endif

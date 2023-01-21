@@ -66,6 +66,7 @@ protected:
 	void OnSetCommand();
 	void OnSetMmdRegister();
 	void OnSetRegister();
+	void OnShowDetail();
 	void OnShowMmdRegister();
 	void OnShowRegister();
 	void OnShowSpeed();
@@ -76,6 +77,8 @@ protected:
 	void OnTest();
 
 	void OnReload();
+
+	void More();
 
 	CLIOutputStream* m_stream;
 

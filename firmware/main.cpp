@@ -36,6 +36,8 @@ UARTOutputStream g_uartStream;
 TapCLISessionContext g_uartCliContext;
 Timer* g_logTimer = nullptr;
 
+GPIOPin* g_irq = nullptr;
+
 //QSPI interface to FPGA
 OctoSPI* g_qspi;
 
@@ -113,6 +115,7 @@ int main()
 	//Set up the QSPI IRQ GPIO pin
 	//(not actually used as an interrupt for now, just polling)
 	GPIOPin irq(&GPIOE, 12, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	g_irq = &irq;
 
 	//Enable interrupts only after all setup work is done
 	EnableInterrupts();
@@ -126,20 +129,28 @@ int main()
 		//Wait for an interrupt
 		//asm("wfi");
 
-		//Poll for interrupts from the FPGA
-		if(irq)
-			OnFPGAInterrupt();
-
 		//Poll for UART input
 		if(g_cliUART->HasInput())
 			g_uartCliContext.OnKeystroke(g_cliUART->BlockingRead());
 
-		//Run LEDs and buttons
-		UpdateSpeedLEDs();
-		CheckButtons();
+		PollIO();
 	}
 
 	return 0;
+}
+
+/**
+	Process I/O other than the UART
+ */
+void PollIO()
+{
+	//Poll for interrupts from the FPGA
+	if(*g_irq)
+		OnFPGAInterrupt();
+
+	//Run LEDs and buttons
+	UpdateSpeedLEDs();
+	CheckButtons();
 }
 
 void InitClocks()

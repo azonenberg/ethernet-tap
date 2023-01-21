@@ -42,6 +42,7 @@ enum cmdid_t
 	CMD_10,
 	CMD_100,
 	CMD_1000,
+	CMD_DETAIL,
 	CMD_EXIT,
 	CMD_HARDWARE,
 	CMD_INTERFACE,
@@ -160,6 +161,7 @@ static const clikeyword_t g_showMmdCommands[] =
 
 static const clikeyword_t g_interfaceShowCommands[] =
 {
+	{"detail",			CMD_DETAIL,				nullptr,					"Print detailed interface information"},
 	{"mmd",				CMD_MMD,				g_showMmdCommands,			"Read MMD registers"},
 	{"register",		CMD_REGISTER,			g_showRegisterCommands,		"Read PHY registers"},
 	{"speed",			CMD_SPEED,				nullptr,					"Display interface speed options"},
@@ -206,6 +208,9 @@ static const clikeyword_t g_rootCommands[] =
 
 static const clikeyword_t g_interfaceRootCommands[] =
 {
+	//TODO: master/slave state
+	//TODO: test modes
+	//TODO: mdi-x
 	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Enable autonegotiation"},
 	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"exit",			CMD_EXIT,				nullptr,					"Exit to the main menu"},
@@ -415,6 +420,10 @@ void TapCLISessionContext::OnShowCommand()
 {
 	switch(m_command[1].m_commandID)
 	{
+		case CMD_DETAIL:
+			OnShowDetail();
+			break;
+
 		case CMD_HARDWARE:
 			OnShowHardware();
 			break;
@@ -451,6 +460,437 @@ void TapCLISessionContext::OnShowCommand()
 			OnShowVolatility();
 			break;
 	}
+}
+
+void TapCLISessionContext::OnShowDetail()
+{
+	auto base = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	auto status = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_STATUS);
+	bool aneg = (base & 0x1000) == 0x1000;
+
+	//RGMII in-band status
+	int rgmiiState = g_linkState >> (m_activeInterface*4);
+	bool rgmiiUp = (rgmiiState & 0x8) == 0x8;
+	int rgmiiSpeed = rgmiiState & 3;
+
+	m_stream->Printf("RGMII In-Band Status\n");
+	if(rgmiiUp)
+		m_stream->Printf("    Link up\n");
+	else
+		m_stream->Printf("    Link down\n");
+	switch(rgmiiSpeed)
+	{
+		case 0:
+			m_stream->Printf("    10baseT\n");
+			break;
+		case 1:
+			m_stream->Printf("    100baseTX\n");
+			break;
+		case 2:
+			m_stream->Printf("    1000baseT\n");
+			break;
+		default:
+			m_stream->Printf("    Invalid (reserved) speed\n");
+			break;
+	}
+
+	//Basic control register
+	m_stream->Printf("Basic Control = 0x%04x\n", base);
+	if(base & 0x4000)
+		m_stream->Printf("    Loopback enabled\n");
+	else
+		m_stream->Printf("    Loopback disabled\n");
+
+	if(base & 0x1000)
+		m_stream->Printf("    Autonegotiation enabled\n");
+	else
+		m_stream->Printf("    Autonegotiation disabled\n");
+
+	if(base & 0x0800)
+		m_stream->Printf("    Powered down\n");
+	else
+		m_stream->Printf("    Powered up\n");
+
+	if(base & 0x0400)
+		m_stream->Printf("    RGMII isolation\n");
+	else
+		m_stream->Printf("    RGMII operating normally\n");
+
+	if(base & 0x0100)
+		m_stream->Printf("    Full duplex\n");
+	else
+		m_stream->Printf("    Half duplex (not tested or supported in FPGA firmware, may cause problems)\n");
+
+	auto speed = base & 0x2040;
+	if(speed == 0)
+		m_stream->Printf("    Speed select: 10baseT\n");
+	else if(speed == 0x2000)
+		m_stream->Printf("    Speed select: 100baseTX\n");
+	else if(speed == 0x0040)
+		m_stream->Printf("    Speed select: 1000baseT\n");
+	else
+		m_stream->Printf("    Invalid speed\n");
+
+	//Basic status register
+	m_stream->Printf("Basic Status = 0x%04x\n", status);
+	if(status & 0x0020)
+		m_stream->Printf("    Autonegotiation completed\n");
+	else
+		m_stream->Printf("    Autonegotiation not completed\n");
+	if(status & 0x0010)
+		m_stream->Printf("    Remote fault\n");
+	else
+		m_stream->Printf("    No remote fault detected\n");
+	if(status & 0x4)
+		m_stream->Printf("    Link up\n");
+	else
+		m_stream->Printf("    Link down\n");
+	if(status & 0x2)
+		m_stream->Printf("    Jabber detected\n");
+	else
+		m_stream->Printf("    No jabber detected\n");
+
+	//Autonegotiation advertisement
+	auto ad = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+	m_stream->Printf("Autonegotiation Advertisement = 0x%04x\n", ad);
+	if(ad & 0x8000)
+		m_stream->Printf("    Next page\n");
+	else
+		m_stream->Printf("    No next page\n");
+	if(ad & 0x2000)
+		m_stream->Printf("    Remote fault\n");
+	else
+		m_stream->Printf("    No remote fault\n");
+	switch( (ad >> 10) & 3)
+	{
+		case 0:
+			m_stream->Printf("    No pause\n");
+			break;
+
+		case 1:
+			m_stream->Printf("    Asymmetric pause\n");
+			break;
+
+		case 2:
+			m_stream->Printf("    Symmetric pause\n");
+			break;
+
+		case 3:
+			m_stream->Printf("    Symmetric or asymmetric pause\n");
+			break;
+	}
+	if(ad & 0x100)
+		m_stream->Printf("    100baseTX full duplex capable\n");
+	else
+		m_stream->Printf("    Not 100baseTX full duplex capable\n");
+	if(ad & 0x80)
+		m_stream->Printf("    100baseTX half duplex capable\n");
+	else
+		m_stream->Printf("    Not 100baseTX half duplex capable\n");
+	if(ad & 0x40)
+		m_stream->Printf("    10baseT full duplex capable\n");
+	else
+		m_stream->Printf("    Not 10baseT full duplex capable\n");
+	if(ad & 0x20)
+		m_stream->Printf("    10baseT half duplex capable\n");
+	else
+		m_stream->Printf("    Not 10baseT half duplex capable\n");
+	auto sel = (ad & 0x1f);
+	if(sel == 0x1)
+		m_stream->Printf("    Selector: 0x01 (Ethernet)\n");
+	else
+		m_stream->Printf("    Selector: 0x%02x (invalid)\n", sel);
+
+	//Autonegotiation advertisement
+	ad = PhyRegisterRead(m_activeInterface, PHY_REG_AN_PARTNER);
+	m_stream->Printf("Autonegotiation Link Partner Ability = 0x%04x\n", ad);
+	if(ad & 0x8000)
+		m_stream->Printf("    Next page\n");
+	else
+		m_stream->Printf("    No next page\n");
+	if(ad & 0x4000)
+		m_stream->Printf("    ACK\n");
+	else
+		m_stream->Printf("    No ACK\n");
+	if(ad & 0x2000)
+		m_stream->Printf("    Remote fault\n");
+	else
+		m_stream->Printf("    No remote fault\n");
+	switch( (ad >> 10) & 3)
+	{
+		case 0:
+			m_stream->Printf("    No pause\n");
+			break;
+
+		case 1:
+			m_stream->Printf("    Asymmetric pause\n");
+			break;
+
+		case 2:
+			m_stream->Printf("    Symmetric pause\n");
+			break;
+
+		case 3:
+			m_stream->Printf("    Symmetric or asymmetric pause\n");
+			break;
+	}
+	if(ad & 0x200)
+		m_stream->Printf("    100baseT4x capable\n");
+	else
+		m_stream->Printf("    Not 100baseT4 capable\n");
+	if(ad & 0x100)
+		m_stream->Printf("    100baseTX full duplex capable\n");
+	else
+		m_stream->Printf("    Not 100baseTX full duplex capable\n");
+	if(ad & 0x80)
+		m_stream->Printf("    100baseTX half duplex capable\n");
+	else
+		m_stream->Printf("    Not 100baseTX half duplex capable\n");
+	if(ad & 0x40)
+		m_stream->Printf("    10baseT full duplex capable\n");
+	else
+		m_stream->Printf("    Not 10baseT full duplex capable\n");
+	if(ad & 0x20)
+		m_stream->Printf("    10baseT half duplex capable\n");
+	else
+		m_stream->Printf("    Not 10baseT half duplex capable\n");
+	sel = (ad & 0x1f);
+	if(sel == 0x1)
+		m_stream->Printf("    Selector: 0x01 (Ethernet)\n");
+	else
+		m_stream->Printf("    Selector: 0x%02x (invalid)\n", sel);
+
+	//Block to avoid spamming the screen with more content than can fit
+	More();
+
+	//AN expansion
+	auto exp = PhyRegisterRead(m_activeInterface, PHY_REG_AN_EXPANSION);
+	m_stream->Printf("Autonegotiation Expansion = 0x%04x\n", exp);
+	if(exp & 0x10)
+		m_stream->Printf("    Parallel detection: fault\n");
+	else
+		m_stream->Printf("    Parallel detection: no fault\n");
+	if(exp & 0x8)
+		m_stream->Printf("    Link partner has next page capability\n");
+	else
+		m_stream->Printf("    Link partner lacks next page capability\n");
+	if(exp & 0x1)
+		m_stream->Printf("    Link partner has autonegotiation capability\n");
+	else
+		m_stream->Printf("    Link partner lacks autonegotiation capability\n");
+
+	//Don't dump AN_NEXT_PAGE as that's outbound only
+
+	//Link partner next page
+	auto pnp = PhyRegisterRead(m_activeInterface, PHY_REG_AN_PARTNER_NEXT_PAGE);
+	m_stream->Printf("Link Partner Next Page = 0x%04x\n", pnp);
+	if(pnp & 0x8000)
+		m_stream->Printf("    Additional pages to follow\n");
+	else
+		m_stream->Printf("    Last page\n");
+	if(pnp & 0x4000)
+		m_stream->Printf("    ACK\n");
+	else
+		m_stream->Printf("    NAK\n");
+	if(pnp & 0x2000)
+		m_stream->Printf("    Message page\n");
+	else
+		m_stream->Printf("    Unformatted page\n");
+	if(pnp & 0x1000)
+		m_stream->Printf("    ACK2\n");
+	else
+		m_stream->Printf("    NAK2\n");
+	m_stream->Printf("    Toggle = %d\n", (pnp >> 11) & 1);
+	m_stream->Printf("    Message = 0x%03x\n", pnp & 0x3ff);
+
+	//1000base-T Control
+	auto gig = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+	m_stream->Printf("1000Base-T Control = 0x%04x\n", gig);
+	int test = (gig >> 13) & 7;
+	switch(test)
+	{
+		case 0:
+			m_stream->Printf("    Normal operation\n");
+			break;
+		case 1:
+			m_stream->Printf("    Waveform test\n");
+			break;
+		case 2:
+			m_stream->Printf("    Jitter test (master mode)\n");
+			break;
+		case 3:
+			m_stream->Printf("    Jitter test (slave mode)\n");
+			break;
+		case 4:
+			m_stream->Printf("    Distortion test\n");
+			break;
+
+		default:
+			m_stream->Printf("    Test mode %d (reserved)\n", test);
+			break;
+	}
+
+	if(gig & 0x1000)
+	{
+		if(gig & 0x0800)
+			m_stream->Printf("    Master mode only\n");
+		else
+			m_stream->Printf("    Slave mode only\n");
+	}
+	else
+	{
+		if(gig & 0x0400)
+			m_stream->Printf("    Negotiate mode, prefer master\n");
+		else
+			m_stream->Printf("    Negotiate mode, prefer slave\n");
+	}
+
+	if(gig & 0x0200)
+		m_stream->Printf("    Advertise 1000baseT full duplex\n");
+	else
+		m_stream->Printf("    Do not advertise 1000baseT full duplex\n");
+
+	if(gig & 0x0100)
+		m_stream->Printf("    Advertise 1000baseT half duplex\n");
+	else
+		m_stream->Printf("    Do not advertise 1000baseT half duplex\n");
+
+	//1000base-T Status
+	auto gstat = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_STATUS);
+	m_stream->Printf("1000Base-T Status = 0x%04x\n", gstat);
+	if(gstat & 0x8000)
+		m_stream->Printf("    Master-slave configuration fault\n");
+	else
+		m_stream->Printf("    No configuration fault\n");
+	if(gstat & 0x4000)
+		m_stream->Printf("    Operating in master mode\n");
+	else
+		m_stream->Printf("    Operating in slave mode\n");
+	if(gstat & 0x2000)
+		m_stream->Printf("    Local receiver OK\n");
+	else
+		m_stream->Printf("    Local receiver not OK\n");
+	if(gstat & 0x1000)
+		m_stream->Printf("    Remote receiver OK\n");
+	else
+		m_stream->Printf("    Remote receiver not OK\n");
+	if(gstat & 0x0800)
+		m_stream->Printf("    Link partner capable of 1000baseT full duplex\n");
+	else
+		m_stream->Printf("    Link partner not capable of 1000baseT full duplex\n");
+	if(gstat & 0x0400)
+		m_stream->Printf("    Link partner capable of 1000baseT half duplex\n");
+	else
+		m_stream->Printf("    Link partner not capable of 1000baseT half duplex\n");
+	m_stream->Printf("    Idle error count: %d\n", gstat & 0xff);
+
+	m_stream->Printf("-- Vendor specific registers after this point --\n");
+
+	//no register at 0x0b, 0x0c
+
+	//registers 0x0d, 0x0e used for MMD access
+
+	//register 0x0f is just capabilities, nothing interesting / changeable there
+
+	//no register at 0x10
+
+	//Remote Loopback
+	auto rloop = PhyRegisterRead(m_activeInterface, PHY_REG_REMOTE_LOOPBACK);
+	m_stream->Printf("Remote Loopback = 0x%04x\n", rloop);
+	if(rloop & 0x100)
+		m_stream->Printf("    Remote loopback enabled\n");
+	else
+		m_stream->Printf("    Remote loopback disabled\n");
+
+	//ignore linkmd, we have separate commands for that
+
+	auto pcspma = PhyRegisterRead(m_activeInterface, PHY_REG_DIGITAL_PCS_PMA);
+	m_stream->Printf("Digital PCS / PMA Status = 0x%04x\n", pcspma);
+	if(pcspma & 0x4)
+		m_stream->Printf("    1000baseT link OK\n");
+	else
+		m_stream->Printf("    1000baseT link not OK\n");
+
+	if(pcspma & 0x2)
+		m_stream->Printf("    100baseTX link OK\n");
+	else
+		m_stream->Printf("    100baseTX link not OK\n");
+
+	//no register at 0x14
+
+	auto rxer = PhyRegisterRead(m_activeInterface, PHY_REG_RX_ER);
+	m_stream->Printf("RX Error Count = %d\n", rxer);
+
+	//No registers at 0x16 - 0x1a
+
+	//Register 0x1B is interrupt enables, ignore: interrupt pin isn't even connected
+
+	auto mdix = PhyRegisterRead(m_activeInterface, PHY_REG_MDIX);
+	m_stream->Printf("Auto MDI-X Control = 0x%04x\n", mdix);
+	if(mdix & 0x40)
+	{
+		if(mdix & 0x80)
+			m_stream->Printf("    MDI mode only\n");
+		else
+			m_stream->Printf("    MDI-X mode only\n");
+	}
+	else
+		m_stream->Printf("    Auto MDI-X\n");
+
+	//No register at 0x1d - 0x1e
+
+	More();
+
+	//PHY Control
+	auto ctrl = PhyRegisterRead(m_activeInterface, PHY_REG_CTRL);
+	m_stream->Printf("PHY Control = 0x%04x\n", ctrl);
+	if(ctrl & 0x200)
+		m_stream->Printf("    Jabber counter enabled\n");
+	else
+		m_stream->Printf("    Jabber counter disabled\n");
+	if(ctrl & 0x40)
+		m_stream->Printf("    Resolved speed to 1000base-T\n");
+	if(ctrl & 0x20)
+		m_stream->Printf("    Resolved speed to 100base-TX\n");
+	if(ctrl & 0x10)
+		m_stream->Printf("    Resolved speed to 10base-T\n");
+	if(ctrl & 0x8)
+		m_stream->Printf("    Full duplex mode\n");
+	else
+		m_stream->Printf("    Half duplex mode\n");
+	if(ctrl & 0x4)
+		m_stream->Printf("    1000base-T master mode\n");
+	else
+		m_stream->Printf("    1000base-T slave mode\n");
+	if(ctrl & 0x1)
+		m_stream->Printf("    Link failed\n");
+	else
+		m_stream->Printf("    Link not failed\n");
+
+	//TODO: AN FLP interval? Not something we ever tweak
+	//TODO: link up time setting?
+
+	//Ignore strap overrides
+
+	//Ignore pad skew control
+
+	//Ignore WoL config
+
+	//Ignore analog control for 10baseTe mode
+
+	//Ignore EDPD mode
+}
+
+/**
+	@brief Block until the user pushes a button, but still update I/O
+ */
+void TapCLISessionContext::More()
+{
+	m_stream->Printf("---- More ----\n");
+	m_stream->Flush();
+	while(!g_cliUART->HasInput())
+		PollIO();
+	g_cliUART->BlockingRead();
 }
 
 void TapCLISessionContext::OnShowInterfaceStatus()
@@ -492,7 +932,19 @@ void TapCLISessionContext::OnShowSpeed()
 			m_stream->Printf("    10baseT full duplex\n");
 	}
 	else
+	{
 		m_stream->Printf("Autonegotiation disabled\n");
+
+		auto speed = bc & 0x2040;
+		if(speed == 0)
+			m_stream->Printf("Speed forced to 10baseT\n");
+		else if(speed == 0x2000)
+			m_stream->Printf("Speed forced to 100baseTX\n");
+		else if(speed == 0x0040)
+			m_stream->Printf("Speed forced to 1000baseT\n");
+		else
+			m_stream->Printf("Invalid speed\n");
+	}
 }
 
 void TapCLISessionContext::OnShowMmdRegister()
