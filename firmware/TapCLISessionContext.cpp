@@ -43,9 +43,12 @@ enum cmdid_t
 	CMD_100,
 	CMD_1000,
 	CMD_DETAIL,
+	CMD_DISTORTION,
 	CMD_EXIT,
 	CMD_HARDWARE,
 	CMD_INTERFACE,
+	CMD_JITTER,
+	CMD_MASTER,
 	CMD_MMD,
 	CMD_MONA,
 	CMD_MONB,
@@ -56,11 +59,14 @@ enum cmdid_t
 	CMD_RELOAD,
 	CMD_SET,
 	CMD_SHOW,
+	CMD_SLAVE,
 	CMD_SPEED,
 	CMD_STATUS,
 	CMD_TEST,
+	CMD_TESTPATTERN,
 	CMD_VERSION,
-	CMD_VOLATILITY
+	CMD_VOLATILITY,
+	CMD_WAVEFORM_TEST
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -187,7 +193,26 @@ static const clikeyword_t g_interfaceNoCommands[] =
 {
 	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Disable autonegotiation"},
 	{"speed",			CMD_SPEED,				g_interfaceSpeedCommands,	"Turn off advertisement of a specific speed"},
+	{"testpattern",		CMD_TESTPATTERN,		nullptr,					"Stop sending test patterns"},
 
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "testpattern"
+
+static const clikeyword_t g_modeCommands[] =
+{
+	{"master",			CMD_MASTER,				nullptr,					"Master mode"},
+	{"slave",			CMD_SLAVE,				nullptr,					"Slave mode"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+static const clikeyword_t g_testpatternCommands[] =
+{
+	{"distortion",		CMD_DISTORTION,			nullptr,					"Distortion test (mode 4)"},
+	{"jitter",			CMD_JITTER,				g_modeCommands,				"Jitter test (modes 2/3)"},
+	{"waveform",		CMD_WAVEFORM_TEST,		nullptr,					"Waveform test (mode 1)"},
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
@@ -209,7 +234,6 @@ static const clikeyword_t g_rootCommands[] =
 static const clikeyword_t g_interfaceRootCommands[] =
 {
 	//TODO: master/slave state
-	//TODO: test modes
 	//TODO: mdi-x
 	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Enable autonegotiation"},
 	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
@@ -219,6 +243,7 @@ static const clikeyword_t g_interfaceRootCommands[] =
 	{"set",				CMD_SET,				g_interfaceSetCommands,		"Set raw hardware registers"},
 	{"show",			CMD_SHOW,				g_interfaceShowCommands,	"Print information"},
 	{"speed",			CMD_SPEED,				g_interfaceSpeedCommands,	"Set port operating speed"},
+	{"testpattern",		CMD_TESTPATTERN,		g_testpatternCommands,		"Send a test pattern"},
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
@@ -230,6 +255,10 @@ TapCLISessionContext::TapCLISessionContext()
 	, m_stream(nullptr)
 	, m_activeInterface(0)
 {
+	//get reasonable defaults
+	m_testModeSavedRegisters[0] = 0x1140;
+	m_testModeSavedRegisters[1] = 0;
+	m_testModeSavedRegisters[2] = 0x0200;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -287,6 +316,10 @@ void TapCLISessionContext::OnExecute()
 			OnTest();
 			break;
 
+		case CMD_TESTPATTERN:
+			OnTestPattern();
+			break;
+
 		default:
 			break;
 	}
@@ -336,6 +369,10 @@ void TapCLISessionContext::OnNoCommand()
 
 		case CMD_SPEED:
 			OnNoSpeed();
+			break;
+
+		case CMD_TESTPATTERN:
+			OnNoTestPattern();
 			break;
 
 		default:
@@ -1324,5 +1361,55 @@ void TapCLISessionContext::OnNoAutonegotiation()
 
 	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, basic);
 
+	RestartNegotiation(m_activeInterface);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "testpattern"
+
+void TapCLISessionContext::OnTestPattern()
+{
+	int mode = 0;
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_WAVEFORM_TEST:
+			mode = 1;
+			break;
+
+		case CMD_JITTER:
+			if(m_command[2].m_commandID == CMD_MASTER)
+				mode = 2;
+			else
+				mode = 3;
+			break;
+
+		case CMD_DISTORTION:
+			mode = 4;
+			break;
+	}
+
+	//Save previous state if we're not already in test mode
+	auto oldGig = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+	if( (oldGig & 0xe000) == 0)
+	{
+		m_testModeSavedRegisters[0] = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+		m_testModeSavedRegisters[1] = PhyRegisterRead(m_activeInterface, PHY_REG_MDIX);
+		m_testModeSavedRegisters[2] = oldGig;
+	}
+
+	//Force link up, no negotiation, 1000baseT, and enable the test mode
+	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, 0x0140);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_MDIX, 0x0040);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, 0x1000 | (mode << 13));
+}
+
+void TapCLISessionContext::OnNoTestPattern()
+{
+	//Restore old register values
+	PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, m_testModeSavedRegisters[2]);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_MDIX, m_testModeSavedRegisters[1]);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, m_testModeSavedRegisters[0]);
+
+	//Restart negotiation so the link comes back up
 	RestartNegotiation(m_activeInterface);
 }

@@ -61,6 +61,7 @@ protected:
 	void OnNoCommand();
 	void OnNoAutonegotiation();
 	void OnNoSpeed();
+	void OnNoTestPattern();
 	void OnShowCommand();
 	void OnShowInterfaceStatus();
 	void OnSetCommand();
@@ -75,6 +76,7 @@ protected:
 	void OnShowVolatility();
 	void OnSpeed();
 	void OnTest();
+	void OnTestPattern();
 
 	void OnReload();
 
@@ -83,6 +85,8 @@ protected:
 	CLIOutputStream* m_stream;
 
 	int m_activeInterface;
+
+	int m_testModeSavedRegisters[3];
 };
 
 #endif
