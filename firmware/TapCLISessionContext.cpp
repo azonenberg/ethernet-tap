@@ -38,6 +38,7 @@
 //List of all valid command tokens
 enum cmdid_t
 {
+	CMD_AUTO,
 	CMD_AUTONEGOTIATION,
 	CMD_10,
 	CMD_100,
@@ -49,12 +50,14 @@ enum cmdid_t
 	CMD_INTERFACE,
 	CMD_JITTER,
 	CMD_MASTER,
+	CMD_MODE,
 	CMD_MMD,
 	CMD_MONA,
 	CMD_MONB,
 	CMD_NO,
 	CMD_PORTA,
 	CMD_PORTB,
+	CMD_PREFER,
 	CMD_REGISTER,
 	CMD_RELOAD,
 	CMD_SET,
@@ -199,7 +202,7 @@ static const clikeyword_t g_interfaceNoCommands[] =
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// "testpattern"
+// "mode"
 
 static const clikeyword_t g_modeCommands[] =
 {
@@ -207,6 +210,23 @@ static const clikeyword_t g_modeCommands[] =
 	{"slave",			CMD_SLAVE,				nullptr,					"Slave mode"},
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
+
+static const clikeyword_t g_preferModeCommands[] =
+{
+	{"prefer",			CMD_PREFER,				g_modeCommands,				"Specify preference"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+static const clikeyword_t g_allModeCommands[] =
+{
+	{"auto",			CMD_AUTO,				g_preferModeCommands,		"Negotiate master or slave mode"},
+	{"master",			CMD_MASTER,				nullptr,					"Master mode"},
+	{"slave",			CMD_SLAVE,				nullptr,					"Slave mode"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "testpattern"
 
 static const clikeyword_t g_testpatternCommands[] =
 {
@@ -233,12 +253,12 @@ static const clikeyword_t g_rootCommands[] =
 
 static const clikeyword_t g_interfaceRootCommands[] =
 {
-	//TODO: master/slave state
-	//TODO: mdi-x
+	//TODO: mdi-x override
 	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Enable autonegotiation"},
 	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"exit",			CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
+	{"mode",			CMD_MODE,				g_allModeCommands,			"Specify 1000base-T master/slave mode"},
 	{"no",				CMD_NO,					g_interfaceNoCommands,		"Turn settings off"},
 	{"set",				CMD_SET,				g_interfaceSetCommands,		"Set raw hardware registers"},
 	{"show",			CMD_SHOW,				g_interfaceShowCommands,	"Print information"},
@@ -290,6 +310,10 @@ void TapCLISessionContext::OnExecute()
 
 		case CMD_INTERFACE:
 			OnInterfaceCommand();
+			break;
+
+		case CMD_MODE:
+			OnModeCommand();
 			break;
 
 		case CMD_NO:
@@ -1411,5 +1435,39 @@ void TapCLISessionContext::OnNoTestPattern()
 	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, m_testModeSavedRegisters[0]);
 
 	//Restart negotiation so the link comes back up
+	RestartNegotiation(m_activeInterface);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "mode"
+
+void TapCLISessionContext::OnModeCommand()
+{
+	auto gig = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL) & ~0x1c00;
+
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_MASTER:
+			PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, gig | 0x1800);
+			break;
+
+		case CMD_SLAVE:
+			PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, gig | 0x1000);
+			break;
+
+		case CMD_AUTO:
+			switch(m_command[3].m_commandID)
+			{
+				case CMD_MASTER:
+					PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, gig | 0x400);
+					break;
+
+				case CMD_SLAVE:
+					PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, gig);
+					break;
+			}
+			break;
+	}
+
 	RestartNegotiation(m_activeInterface);
 }

@@ -58,6 +58,7 @@ protected:
 
 	void OnAutonegotiation();
 	void OnInterfaceCommand();
+	void OnModeCommand();
 	void OnNoCommand();
 	void OnNoAutonegotiation();
 	void OnNoSpeed();
