@@ -43,6 +43,7 @@ enum cmdid_t
 	CMD_10,
 	CMD_100,
 	CMD_1000,
+	CMD_CROSSOVER,
 	CMD_DETAIL,
 	CMD_DISTORTION,
 	CMD_EXIT,
@@ -51,6 +52,7 @@ enum cmdid_t
 	CMD_JITTER,
 	CMD_MASTER,
 	CMD_MODE,
+	CMD_MDI,
 	CMD_MMD,
 	CMD_MONA,
 	CMD_MONB,
@@ -65,6 +67,7 @@ enum cmdid_t
 	CMD_SLAVE,
 	CMD_SPEED,
 	CMD_STATUS,
+	CMD_STRAIGHT,
 	CMD_TEST,
 	CMD_TESTPATTERN,
 	CMD_VERSION,
@@ -179,6 +182,17 @@ static const clikeyword_t g_interfaceShowCommands[] =
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "mdi"
+
+static const clikeyword_t g_mdiCommands[] =
+{
+	{"auto",			CMD_AUTO,				nullptr,					"Auto MDI-X"},
+	{"crossover",		CMD_CROSSOVER,			nullptr,					"MDI-X mode"},
+	{"straight",		CMD_STRAIGHT,			nullptr,					"MDI mode"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "speed"
 
 static const clikeyword_t g_interfaceSpeedCommands[] =
@@ -253,10 +267,10 @@ static const clikeyword_t g_rootCommands[] =
 
 static const clikeyword_t g_interfaceRootCommands[] =
 {
-	//TODO: mdi-x override
 	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Enable autonegotiation"},
 	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"exit",			CMD_EXIT,				nullptr,					"Exit to the main menu"},
+	{"mdi",				CMD_MDI,				g_mdiCommands,				"Specify auto or manual MDI/MDI-X mode"},
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
 	{"mode",			CMD_MODE,				g_allModeCommands,			"Specify 1000base-T master/slave mode"},
 	{"no",				CMD_NO,					g_interfaceNoCommands,		"Turn settings off"},
@@ -310,6 +324,10 @@ void TapCLISessionContext::OnExecute()
 
 		case CMD_INTERFACE:
 			OnInterfaceCommand();
+			break;
+
+		case CMD_MDI:
+			OnMdiCommand();
 			break;
 
 		case CMD_MODE:
@@ -1470,4 +1488,31 @@ void TapCLISessionContext::OnModeCommand()
 	}
 
 	RestartNegotiation(m_activeInterface);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "mode"
+
+void TapCLISessionContext::OnMdiCommand()
+{
+	auto mdi = PhyRegisterRead(m_activeInterface, PHY_REG_MDIX) & 0xff3f;
+
+	switch(m_command[1].m_commandID)
+	{
+		//default, no action needed
+		case CMD_AUTO:
+			break;
+
+		case CMD_STRAIGHT:
+			mdi |= 0x40;
+			mdi |= 0x80;
+			break;
+
+		case CMD_CROSSOVER:
+			mdi |= 0x40;
+			break;
+	}
+
+	PhyRegisterWrite(m_activeInterface, PHY_REG_MDIX, mdi);
 }
