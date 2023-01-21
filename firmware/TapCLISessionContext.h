@@ -56,8 +56,10 @@ public:
 protected:
 	virtual void OnExecute();
 
+	void OnAutonegotiation();
 	void OnInterfaceCommand();
 	void OnNoCommand();
+	void OnNoAutonegotiation();
 	void OnNoSpeed();
 	void OnShowCommand();
 	void OnShowInterfaceStatus();
@@ -72,8 +74,6 @@ protected:
 	//void ShowHardware();
 
 	void OnReload();
-
-	void RestartNegotiation(int nport);
 
 	CLIOutputStream* m_stream;
 

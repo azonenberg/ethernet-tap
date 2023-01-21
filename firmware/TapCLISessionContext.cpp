@@ -38,7 +38,7 @@
 //List of all valid command tokens
 enum cmdid_t
 {
-	CMD_AUTO,
+	CMD_AUTONEGOTIATION,
 	CMD_10,
 	CMD_100,
 	CMD_1000,
@@ -164,6 +164,7 @@ static const clikeyword_t g_interfaceSpeedCommands[] =
 
 static const clikeyword_t g_interfaceNoCommands[] =
 {
+	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Disable autonegotiation"},
 	{"speed",			CMD_SPEED,				g_interfaceSpeedCommands,	"Turn off advertisement of a specific speed"},
 
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
@@ -186,6 +187,7 @@ static const clikeyword_t g_rootCommands[] =
 
 static const clikeyword_t g_interfaceRootCommands[] =
 {
+	{"autonegotiation",	CMD_AUTONEGOTIATION,	nullptr,					"Enable autonegotiation"},
 	{"end",				CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"exit",			CMD_EXIT,				nullptr,					"Exit to the main menu"},
 	{"interface",		CMD_INTERFACE,			g_interfaceCommands,		"Interface properties"},
@@ -225,6 +227,10 @@ void TapCLISessionContext::OnExecute()
 {
 	switch(m_command[0].m_commandID)
 	{
+		case CMD_AUTONEGOTIATION:
+			OnAutonegotiation();
+			break;
+
 		case CMD_EXIT:
 			m_rootCommands = g_rootCommands;
 			break;
@@ -300,8 +306,13 @@ void TapCLISessionContext::OnNoCommand()
 {
 	switch(m_command[1].m_commandID)
 	{
+		case CMD_AUTONEGOTIATION:
+			OnNoAutonegotiation();
+			break;
+
 		case CMD_SPEED:
 			OnNoSpeed();
+			break;
 
 		default:
 			break;
@@ -331,12 +342,6 @@ void TapCLISessionContext::OnNoSpeed()
 
 	//Restart negotiation
 	RestartNegotiation(m_activeInterface);
-}
-
-void TapCLISessionContext::RestartNegotiation(int nport)
-{
-	auto base = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
-	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, base | 0x0200);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -596,27 +601,56 @@ void TapCLISessionContext::ShowHardware()
 
 void TapCLISessionContext::OnSpeed()
 {
-	//10/100 speeds are in the AN base page advertisement register
-	if( (m_command[1].m_commandID == CMD_10) || (m_command[1].m_commandID == CMD_100) )
+	//Negotiation on, add this speed to the list of advertised speeds and restart
+	auto basic = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	if( (basic & 0x1000) == 0x1000)
 	{
-		auto adv = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
-		if(m_command[2].m_commandID == CMD_100)
-			adv |= 0x100;
+		//10/100 speeds are in the AN base page advertisement register
+		if( (m_command[1].m_commandID == CMD_10) || (m_command[1].m_commandID == CMD_100) )
+		{
+			auto adv = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+			if(m_command[2].m_commandID == CMD_100)
+				adv |= 0x100;
+			else
+				adv |= 0x40;
+			PhyRegisterWrite(m_activeInterface, PHY_REG_AN_ADVERT, adv);
+		}
+
+		//Gigabit speeds are in the 1000baseT control register
 		else
-			adv |= 0x40;
-		PhyRegisterWrite(m_activeInterface, PHY_REG_AN_ADVERT, adv);
+		{
+			auto mode = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+			mode |= 0x200;
+			PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, mode);
+		}
+
+		//Restart negotiation
+		RestartNegotiation(m_activeInterface);
 	}
 
-	//Gigabit speeds are in the 1000baseT control register
+	//Negotiation off, force to exactly this speed
 	else
 	{
-		auto mode = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
-		mode |= 0x200;
-		PhyRegisterWrite(m_activeInterface, PHY_REG_GIG_CONTROL, mode);
-	}
+		//Mask off speed select
+		basic &= 0xdfbf;
 
-	//Restart negotiation
-	RestartNegotiation(m_activeInterface);
+		switch(m_command[1].m_commandID)
+		{
+			case CMD_10:
+				//nothing to do, code 0 is 10M
+				break;
+
+			case CMD_100:
+				basic |= 0x2000;
+				break;
+
+			case CMD_1000:
+				basic |= 0x0040;
+				break;
+		}
+
+		PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, basic);
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -717,4 +751,36 @@ void TapCLISessionContext::OnTest()
 	PhyRegisterWrite(iface, PHY_REG_BASIC_CONTROL, oldBase);
 	PhyRegisterWrite(iface, PHY_REG_MDIX, oldMdix);
 	PhyRegisterWrite(iface, PHY_REG_GIG_CONTROL, oldCtrl);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "autonegotiation"
+
+void TapCLISessionContext::OnAutonegotiation()
+{
+	auto basic = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, basic | 0x1000);
+
+	RestartNegotiation(m_activeInterface);
+}
+
+void TapCLISessionContext::OnNoAutonegotiation()
+{
+	auto basic = PhyRegisterRead(m_activeInterface, PHY_REG_BASIC_CONTROL);
+	auto gig = PhyRegisterRead(m_activeInterface, PHY_REG_GIG_CONTROL);
+	auto adv = PhyRegisterRead(m_activeInterface, PHY_REG_AN_ADVERT);
+
+	//Turn off AN flag
+	basic &= ~0x1000;
+
+	//Force speed to highest currently advertised speed
+	basic &= 0xdfbf;
+	if(gig & 0x200)
+		basic |= 0x0040;
+	else if(adv & 0x100)
+		basic |= 0x2000;
+
+	PhyRegisterWrite(m_activeInterface, PHY_REG_BASIC_CONTROL, basic);
+
+	RestartNegotiation(m_activeInterface);
 }

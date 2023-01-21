@@ -49,6 +49,7 @@ void InitPHYs();
 void InitCLI();
 
 void UpdateSpeedLEDs();
+void CheckButtons();
 
 void OnFPGAInterrupt();
 
@@ -99,15 +100,15 @@ int main()
 	InitPHYs();
 	InitCLI();
 
-	//Set up the GPIO LEDs and turn them all on for now
+	//Set up the GPIO LEDs and turn them all off for now
 	GPIOPin led0(&GPIOD, 3, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
 	GPIOPin led1(&GPIOD, 2, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
 	GPIOPin led2(&GPIOD, 1, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
 	GPIOPin led3(&GPIOC, 12, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
-	led0 = 1;
-	led1 = 1;
-	led2 = 1;
-	led3 = 1;
+	led0 = 0;
+	led1 = 0;
+	led2 = 0;
+	led3 = 0;
 
 	//Set up the QSPI IRQ GPIO pin
 	//(not actually used as an interrupt for now, just polling)
@@ -133,8 +134,9 @@ int main()
 		if(g_cliUART->HasInput())
 			g_uartCliContext.OnKeystroke(g_cliUART->BlockingRead());
 
-		//Update the LEDs with speed settings
+		//Run LEDs and buttons
 		UpdateSpeedLEDs();
+		CheckButtons();
 	}
 
 	return 0;
@@ -509,6 +511,197 @@ void OnFPGAInterrupt()
 
 void UpdateSpeedLEDs()
 {
-	//TODO: LEDs on if advertised/forced off if not
+	//LEDs
+	static GPIOPin left_aneg_en(&GPIOC, 4, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_10m_en(&GPIOB, 11, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_100m_en(&GPIOF, 3, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_1000m_en(&GPIOB, 9, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+
+	static GPIOPin right_aneg_en(&GPIOA, 5, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_10m_en(&GPIOE, 10, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_100m_en(&GPIOG, 15, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_1000m_en(&GPIOB, 8, GPIOPin::MODE_OUTPUT, GPIOPin::SLEW_SLOW);
+
+	//Get advertised speeds/modes for each port
+	auto leftAd = PhyRegisterRead(0, PHY_REG_AN_ADVERT);
+	auto leftGig = PhyRegisterRead(0, PHY_REG_GIG_CONTROL);
+	bool left10 = (leftAd & 0x40) == 0x40;
+	bool left100 = (leftAd & 0x100) == 0x100;
+	bool left1000 = (leftGig & 0x200) == 0x200;
+
+	auto rightAd = PhyRegisterRead(1, PHY_REG_AN_ADVERT);
+	auto rightGig = PhyRegisterRead(1, PHY_REG_GIG_CONTROL);
+	bool right10 = (rightAd & 0x40) == 0x40;
+	bool right100 = (rightAd & 0x100) == 0x100;
+	bool right1000 = (rightGig & 0x200) == 0x200;
+
+	//Get actual operating speeds
+	auto leftCtrl = PhyRegisterRead(0, PHY_REG_CTRL);
+	auto rightCtrl = PhyRegisterRead(1, PHY_REG_CTRL);
+	int leftSpeed = 0;
+	int rightSpeed = 0;
+	if(leftCtrl & 0x10)
+		leftSpeed = 10;
+	if(leftCtrl & 0x20)
+		leftSpeed = 100;
+	if(leftCtrl & 0x40)
+		leftSpeed = 1000;
+	if(rightCtrl & 0x10)
+		rightSpeed = 10;
+	if(rightCtrl & 0x20)
+		rightSpeed = 100;
+	if(rightCtrl & 0x40)
+		rightSpeed = 1000;
+
+	//Get AN enable status
+	auto leftBasic = PhyRegisterRead(0, PHY_REG_BASIC_CONTROL);
+	auto rightBasic = PhyRegisterRead(1, PHY_REG_BASIC_CONTROL);
+	bool leftAneg = (leftBasic & 0x1000) == 0x1000;
+	bool rightAneg = (rightBasic & 0x1000) == 0x1000;
+
+	//Blink at ~1 Hz (500ms per cycle)
+	bool blink = (g_logTimer->GetCount() / 5000) % 2;
+
+	//LEDs on if advertised/forced off if not
 	//Blink if currently running at that speed
+	if( (leftSpeed == 10) && blink)
+		left10 = false;
+	if( (leftSpeed == 100) && blink)
+		left100 = false;
+	if( (leftSpeed == 1000) && blink)
+		left1000 = false;
+	if( (rightSpeed == 10) && blink)
+		right10 = false;
+	if( (rightSpeed == 100) && blink)
+		right100 = false;
+	if( (rightSpeed == 1000) && blink)
+		right1000 = false;
+
+	//Write final outputs
+	left_10m_en = left10;
+	left_100m_en = left100;
+	left_1000m_en = left1000;
+	left_aneg_en = leftAneg;
+
+	right_10m_en = right10;
+	right_100m_en = right100;
+	right_1000m_en = right1000;
+	right_aneg_en = rightAneg;
+}
+
+void CheckButtons()
+{
+	static bool changedLastTime = false;
+
+	static GPIOPin left_aneg_sw(&GPIOF, 14, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_10m_sw(&GPIOH, 2, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_100m_sw(&GPIOC, 5, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin left_1000m_sw(&GPIOE, 3, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+
+	static GPIOPin right_aneg_sw(&GPIOF, 12, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_10m_sw(&GPIOH, 3, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_100m_sw(&GPIOF, 0, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+	static GPIOPin right_1000m_sw(&GPIOE, 4, GPIOPin::MODE_INPUT, GPIOPin::SLEW_SLOW);
+
+	//Read switches
+	bool left_aneg = left_aneg_sw;
+	bool left_10m = left_10m_sw;
+	bool left_100m = left_100m_sw;
+	bool left_1000m = left_1000m_sw;
+	bool right_aneg = right_aneg_sw;
+	bool right_10m = right_10m_sw;
+	bool right_100m = right_100m_sw;
+	bool right_1000m = right_1000m_sw;
+
+	//See which port (if any) was hit
+	int nport = 0;
+	bool changed = false;
+	if(left_aneg || left_10m || left_100m || left_1000m)
+		changed = true;
+	if(right_aneg || right_10m || right_100m || right_1000m)
+	{
+		changed = true;
+		nport = 1;
+	}
+
+	//Ignore any button presses if we just executed one
+	if(changedLastTime && changed)
+		return;
+
+	changedLastTime = changed;
+
+	//Process the changes
+	if(changed)
+	{
+		auto basic = PhyRegisterRead(nport, PHY_REG_BASIC_CONTROL);
+		auto an_on = (basic & 0x1000) == 0x1000;
+		auto gig = PhyRegisterRead(nport, PHY_REG_GIG_CONTROL);
+		auto adv = PhyRegisterRead(nport, PHY_REG_AN_ADVERT);
+
+		//Toggle AN flag
+		if(left_aneg || right_aneg)
+		{
+			basic ^= 0x1000;
+			an_on = !an_on;
+
+			//If turning AN off, force to highest currently advertised speed
+			if(!an_on)
+			{
+				basic &= 0xdfbf;
+				if(gig & 0x200)
+					basic |= 0x0040;
+				else if(adv & 0x100)
+					basic |= 0x2000;
+			}
+
+			PhyRegisterWrite(nport, PHY_REG_BASIC_CONTROL, basic);
+		}
+
+		//If AN is on, toggle advertised speeds
+		if(an_on)
+		{
+			if(left_10m || right_10m || left_100m || right_100m )
+			{
+				if(left_10m || right_10m)
+					adv ^= 0x40;
+				if(left_100m || right_100m)
+					adv ^= 0x100;
+
+				PhyRegisterWrite(nport, PHY_REG_AN_ADVERT, adv);
+			}
+
+			if(left_1000m || right_1000m)
+				PhyRegisterWrite(nport, PHY_REG_GIG_CONTROL, gig ^ 0x200);
+
+			RestartNegotiation(nport);
+		}
+
+		//If AN is off, force the clicked speed
+		else if(left_10m || right_10m || left_100m || right_100m || left_1000m || right_1000m)
+		{
+			//Mask off speed select
+			basic &= 0xdfbf;
+
+			if(left_10m || right_10m)
+			{
+				//nothing to do, code 0 is 10M
+			}
+
+			if(left_100m || right_100m)
+				basic |= 0x2000;
+			if(left_1000m || right_1000m)
+				basic |= 0x0040;
+
+			PhyRegisterWrite(nport, PHY_REG_BASIC_CONTROL, basic);
+		}
+
+		//1ms debounce timer
+		g_logTimer->Sleep(10);
+	}
+}
+
+void RestartNegotiation(int nport)
+{
+	auto base = PhyRegisterRead(nport, PHY_REG_BASIC_CONTROL);
+	PhyRegisterWrite(nport, PHY_REG_BASIC_CONTROL, base | 0x0200);
 }

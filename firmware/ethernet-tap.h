@@ -112,6 +112,7 @@ enum phyregs
 	PHY_REG_MMD_DATA		= 0x000e,
 	PHY_REG_LINKMD			= 0x0012,
 	PHY_REG_MDIX			= 0x001c,
+	PHY_REG_CTRL			= 0x001f,
 
 	//indirect mmd0
 	PHY_REG_MMD0_FLP_LO		= 0x0003,
@@ -125,5 +126,7 @@ void PhyRegisterWrite(int port, uint8_t regid, uint16_t regval);
 
 uint16_t PhyRegisterIndirectRead(int port, uint8_t mmd, uint16_t regid);
 void PhyRegisterIndirectWrite(int port, uint8_t mmd, uint16_t regid, uint16_t regval);
+
+void RestartNegotiation(int nport);
 
 #endif
