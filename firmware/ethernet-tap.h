@@ -73,6 +73,7 @@ enum regids
 	REG_FPGA_IDCODE		= 0x0000,
 	REG_FPGA_SERIAL		= 0x0001,
 	REG_LINK_STATE		= 0x0002,
+	REG_TRIG_MUX		= 0x0003,
 
 	//Port 0 (device A)
 	REG_ETH0_RST		= 0x1000,

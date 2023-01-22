@@ -41,6 +41,8 @@ typedef struct packed
 	logic[3:0]	mdio_wr_en;
 	logic[4:0]	mdio_regaddr;
 	logic[15:0] mdio_wdata;
+
+	logic[3:0]	trig_mux;
 } cfgregs_t;
 
 `endif

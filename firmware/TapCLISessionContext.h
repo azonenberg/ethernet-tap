@@ -79,6 +79,7 @@ protected:
 	void OnSpeed();
 	void OnTest();
 	void OnTestPattern();
+	void OnTrigger();
 
 	void OnReload();
 

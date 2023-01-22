@@ -129,6 +129,8 @@ module MicrocontrollerInterface(
 										//	 [1:0]		eth0 speed
 										//IRQ line cleared on read
 
+		REG_TRIG_MUX		= 16'h0003,
+
 		REG_ETH0_RST		= 16'h1000,	//W: [0] active low reset flag
 		REG_ETH0_MDIO_RADDR	= 16'h1001,	//W: [4:0] read register access. Operation is dispatched on completion of write
 		REG_ETH0_MDIO_RDATA	= 16'h1002, //R: 16 bit little endian read data
@@ -231,6 +233,8 @@ module MicrocontrollerInterface(
 			count		<= count + 1;
 
 			case(insn)
+
+				REG_TRIG_MUX: cfgregs.trig_mux	<= wr_data;
 
 				REG_ETH0_RST: cfgregs.phy_rst_n[0] <= wr_data[0];
 				REG_ETH1_RST: cfgregs.phy_rst_n[1] <= wr_data[0];

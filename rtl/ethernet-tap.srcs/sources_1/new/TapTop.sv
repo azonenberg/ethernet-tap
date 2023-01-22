@@ -381,5 +381,74 @@ module TapTop(
 		.trig_out(ila_portB_trig_out),
 		.trig_out_ack(ila_portB_trig_out));
 
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Trigger output status signal synchronizers
+
+	wire[15:0] trig_mux_in;
+
+	//Trigger output disabled
+	assign trig_mux_in[0] = 0;
+
+	//ILA triggers
+	PulseSynchronizer sync_ila_a(
+		.clk_a(portA_rx_clk),
+		.pulse_a(ila_portA_trig_out),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[1]));
+
+	PulseSynchronizer sync_ila_b(
+		.clk_a(portB_rx_clk),
+		.pulse_a(ila_portB_trig_out),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[2]));
+
+	//Frame start
+	PulseSynchronizer sync_start_a(
+		.clk_a(portA_rx_clk),
+		.pulse_a(portA_mac_rx_bus.start),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[3]));
+
+	PulseSynchronizer sync_start_b(
+		.clk_a(portB_rx_clk),
+		.pulse_a(portB_mac_rx_bus.start),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[4]));
+
+	//Frame end
+	PulseSynchronizer sync_commit_a(
+		.clk_a(portA_rx_clk),
+		.pulse_a(portA_mac_rx_bus.commit),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[5]));
+
+	PulseSynchronizer sync_commit_b(
+		.clk_a(portB_rx_clk),
+		.pulse_a(portB_mac_rx_bus.commit),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[6]));
+
+	//Frame drop
+	PulseSynchronizer sync_drop_a(
+		.clk_a(portA_rx_clk),
+		.pulse_a(portA_mac_rx_bus.drop),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[7]));
+
+	PulseSynchronizer sync_drop_b(
+		.clk_a(portB_rx_clk),
+		.pulse_a(portB_mac_rx_bus.drop),
+		.clk_b(clk_125mhz),
+		.pulse_b(trig_mux_in[8]));
+
+	//Unmapped
+	assign trig_mux_in[15:9] = 0;
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// Trigger output mux
+
+	always_ff @(posedge clk_125mhz) begin
+		trig_out	<= trig_mux_in[cfgregs.trig_mux];
+	end
 
 endmodule

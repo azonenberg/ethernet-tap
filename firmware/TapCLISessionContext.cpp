@@ -43,12 +43,15 @@ enum cmdid_t
 	CMD_10,
 	CMD_100,
 	CMD_1000,
+	CMD_COMMIT,
 	CMD_CROSSOVER,
 	CMD_DETAIL,
 	CMD_DISTORTION,
+	CMD_DROP,
 	CMD_EXIT,
 	CMD_HARDWARE,
 	CMD_INTERFACE,
+	CMD_ILA,
 	CMD_JITTER,
 	CMD_MASTER,
 	CMD_MODE,
@@ -57,6 +60,7 @@ enum cmdid_t
 	CMD_MONA,
 	CMD_MONB,
 	CMD_NO,
+	CMD_NONE,
 	CMD_PORTA,
 	CMD_PORTB,
 	CMD_PREFER,
@@ -66,10 +70,12 @@ enum cmdid_t
 	CMD_SHOW,
 	CMD_SLAVE,
 	CMD_SPEED,
+	CMD_START,
 	CMD_STATUS,
 	CMD_STRAIGHT,
 	CMD_TEST,
 	CMD_TESTPATTERN,
+	CMD_TRIGGER,
 	CMD_VERSION,
 	CMD_VOLATILITY,
 	CMD_WAVEFORM_TEST
@@ -193,6 +199,26 @@ static const clikeyword_t g_mdiCommands[] =
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "trigger"
+
+static const clikeyword_t g_triggerSourceCommands[] =
+{
+	{"commit",			CMD_COMMIT,				nullptr,					"Trigger on end of valid frame"},
+	{"drop",			CMD_DROP,				nullptr,					"Trigger on end of invalid frame"},
+	{"ila",				CMD_ILA,				nullptr,					"Trigger sync output from internal logic analyzer"},
+	{"start",			CMD_START,				nullptr,					"Trigger on start of frame"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+static const clikeyword_t g_triggerCommands[] =
+{
+	{"porta",			CMD_PORTA,				g_triggerSourceCommands,	"Left tap port"},
+	{"portb",			CMD_PORTB,				g_triggerSourceCommands,	"Right tap port"},
+	{"none",			CMD_NONE,				nullptr,					"Trigger output disabled"},
+	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "speed"
 
 static const clikeyword_t g_interfaceSpeedCommands[] =
@@ -259,6 +285,7 @@ static const clikeyword_t g_rootCommands[] =
 	{"reload",			CMD_RELOAD,				nullptr,					"Restart the system"},
 	{"show",			CMD_SHOW,				g_showCommands,				"Print information"},
 	{"test",			CMD_TEST,				g_interfaceCommands,		"Run a cable test"},
+	{"trigger",			CMD_TRIGGER,			g_triggerCommands,			"Configure oscilloscope trigger sync output"},
 	{nullptr,			INVALID_COMMAND,		nullptr,					nullptr}
 };
 
@@ -360,6 +387,10 @@ void TapCLISessionContext::OnExecute()
 
 		case CMD_TESTPATTERN:
 			OnTestPattern();
+			break;
+
+		case CMD_TRIGGER:
+			OnTrigger();
 			break;
 
 		default:
@@ -1490,7 +1521,6 @@ void TapCLISessionContext::OnModeCommand()
 	RestartNegotiation(m_activeInterface);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // "mode"
 
@@ -1515,4 +1545,46 @@ void TapCLISessionContext::OnMdiCommand()
 	}
 
 	PhyRegisterWrite(m_activeInterface, PHY_REG_MDIX, mdi);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// "trigger"
+
+void TapCLISessionContext::OnTrigger()
+{
+	int nport = 0;
+
+	switch(m_command[1].m_commandID)
+	{
+		case CMD_NONE:
+			g_qspi->BlockingWrite8(REG_TRIG_MUX, 0, 0);
+			return;
+
+		case CMD_PORTA:
+			nport = 0;
+			break;
+
+		case CMD_PORTB:
+			nport = 1;
+			break;
+	}
+
+	switch(m_command[2].m_commandID)
+	{
+		case CMD_COMMIT:
+			g_qspi->BlockingWrite8(REG_TRIG_MUX, 0, 5 + nport);
+			break;
+
+		case CMD_START:
+			g_qspi->BlockingWrite8(REG_TRIG_MUX, 0, 3 + nport);
+			break;
+
+		case CMD_ILA:
+			g_qspi->BlockingWrite8(REG_TRIG_MUX, 0, 1 + nport);
+			break;
+
+		case CMD_DROP:
+			g_qspi->BlockingWrite8(REG_TRIG_MUX, 0, 7 + nport);
+			break;
+	}
 }
